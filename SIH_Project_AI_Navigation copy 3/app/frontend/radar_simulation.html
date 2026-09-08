@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SIH AI Navigation - Real-Time Dynamic Evasion</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; background: radial-gradient(circle at center, #001a2c 0%, #000000 100%); font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+    
+    #tactical-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; perspective: 1200px; transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; }
+    #map { width: 160vw; height: 160vh; background: #000; transform: rotateX(60deg) translateY(-10%) scale(1.1); transform-origin: center center; box-shadow: 0 0 100px rgba(0, 255, 255, 0.2), inset 0 0 100px rgba(0, 255, 255, 0.4); border: 2px solid rgba(0, 255, 255, 0.3); border-radius: 50px; }
+    
+    .leaflet-layer { filter: contrast(1.2) brightness(0.6) saturate(0.8) hue-rotate(180deg) invert(1); }
+    .leaflet-control-zoom, .leaflet-control-attribution { display: none; }
+
+    /* Radar Sweep */
+    .radar-sweep-container { width: 600px; height: 600px; margin-left: -300px; margin-top: -300px; border-radius: 50%; border: 2px solid rgba(0, 255, 255, 0.3); background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, rgba(0, 255, 255, 0) 70%); position: absolute; pointer-events: none; }
+    .radar-scanner { width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(0,255,255,0) 0deg, rgba(0,255,255,0) 270deg, rgba(0,255,255,0.6) 360deg); animation: sweep 2s linear infinite; }
+    @keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* Vessel */
+    .vessel-icon { width: 40px; height: 40px; margin-left: -20px; margin-top: -20px; position: relative; z-index: 1000; transform: rotateX(-60deg); filter: drop-shadow(0 0 15px #00ffff); }
+    .vessel-icon svg { width: 100%; height: 100%; fill: #00ffff; }
+    .vessel-icon::after { content: ''; position: absolute; top: 35px; left: 19px; width: 2px; height: 40px; background: linear-gradient(to bottom, #00ffff, transparent); }
+
+    /* Goal Beacon */
+    .goal-beacon { width: 30px; height: 30px; margin-left: -15px; margin-top: -15px; background: #0f0; border-radius: 50%; box-shadow: 0 0 20px #0f0; animation: beacon-pulse 1.5s infinite; transform: rotateX(-60deg); }
+    @keyframes beacon-pulse { 0% { transform: rotateX(-60deg) scale(0.5); opacity: 1; } 100% { transform: rotateX(-60deg) scale(2.5); opacity: 0; } }
+
+    /* Iceberg */
+    .iceberg-icon { width: 35px; height: 25px; margin-left: -17px; margin-top: -12px; background: #ffffff; border: 2px solid #fff; border-radius: 5px 12px 3px 8px; box-shadow: 0 0 20px rgba(255, 255, 255, 0.8); transform: rotateX(-60deg) rotateZ(15deg); transition: all 0.3s ease; }
+    .iceberg-detected { box-shadow: 0 0 50px red, inset 0 0 15px red !important; border: 2px solid red; background: #ffaaaa; }
+    .iceberg-hazard-zone { position: absolute; width: 160px; height: 160px; margin-left: -80px; margin-top: -80px; border-radius: 50%; border: 2px dashed red; background: rgba(255, 0, 0, 0.1); transform: rotateX(0deg); animation: pulsate 2s infinite; display: none; }
+    .zone-active { display: block; }
+    @keyframes pulsate { 0% { transform: scale(0.9); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.2; } 100% { transform: scale(0.9); opacity: 0.5; } }
+
+    /* HUD Left Panel */
+    .hud-overlay { position: absolute; top: 20px; left: 20px; z-index: 1000; background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffff; border-left: 4px solid #00ffff; padding: 15px; color: #00ffff; width: 340px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 255, 255, 0.1); transform: perspective(500px) rotateY(5deg); }
+    
+    /* Weather HUD - Top Right */
+    .env-overlay { position: absolute; top: 20px; right: 20px; z-index: 1000; background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffff; border-right: 4px solid #00ffff; padding: 15px; color: #00ffff; width: 280px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 255, 255, 0.1); transform: perspective(500px) rotateY(-5deg); }
+    
+    /* ML Diagnostics HUD - Bottom Right */
+    .ml-overlay { position: absolute; bottom: 20px; right: 20px; z-index: 1000; background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffff; border-right: 4px solid #ff00ff; padding: 15px; color: #ff00ff; width: 320px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(255, 0, 255, 0.1); transform: perspective(500px) rotateY(-5deg); }
+    .ml-overlay .hud-header { border-bottom: 1px solid rgba(255, 0, 255, 0.3); color: #ff00ff;}
+    .ml-overlay .hud-line span { color: #ddaadd; }
+    .ml-overlay .hud-value { color: #fff; }
+
+    /* General HUD Elements */
+    .hud-header { font-weight: 700; font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid rgba(0, 255, 255, 0.3); padding-bottom: 5px; display: flex; align-items: center; gap: 10px; }
+    .hud-line { margin: 4px 0; font-size: 12px; display: flex; justify-content: space-between; }
+    .hud-value { color: #fff; font-weight: bold; font-size: 13px; }
+    .hud-target { margin-top: 10px; background: rgba(255, 0, 0, 0.2); border-left: 4px solid red; padding: 10px; font-size: 12px; display: none; }
+    .hud-telemetry { margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 255, 0.3); }
+    .warning-text { color: red; font-weight: bold; font-size: 13px; margin-bottom: 5px; animation: blink 0.5s infinite; }
+    @keyframes blink { 0% { opacity:1; } 50% { opacity:0.3; } 100% { opacity:1; } }
+
+    .grid-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px); background-size: 50px 50px; pointer-events: none; z-index: 2000; }
+  </style>
+</head>
+<body>
+
+  <div class="grid-overlay"></div>
+  <div id="tactical-container"><div id="map"></div></div>
+
+  <!-- Main Left Navigation HUD -->
+  <div class="hud-overlay">
+    <div class="hud-header"><i data-lucide="crosshair"></i> REAL-TIME AI ROUTING</div>
+    <div class="hud-line"><span>MISSION:</span> <span class="hud-value">USHUAIA ➔ PALMER</span></div>
+    <div class="hud-line"><span>SYSTEM:</span> <span class="hud-value" id="hud-status" style="color:#0f0">CONTINUOUS PATHFINDING</span></div>
+    <div class="hud-line"><span>VESSEL POS:</span> <span class="hud-value" id="hud-pos">--</span></div>
+    
+    <div class="hud-target" id="hud-target">
+      <div class="warning-text"><i data-lucide="alert-octagon" style="width:14px;height:14px"></i> OBSTACLE IN PROXIMITY</div>
+      <div class="hud-line"><span>CONTACT:</span> <span class="hud-value" id="target-id">--</span></div>
+      <div class="hud-line"><span>DIST:</span> <span class="hud-value" id="target-dist">--</span></div>
+      <div class="hud-line"><span>ACTION:</span> <span class="hud-value" style="color:orange">THREADING THE NEEDLE</span></div>
+    </div>
+    
+    <div class="hud-telemetry">
+      <div class="hud-header"><i data-lucide="fuel"></i> ECO-TELEMETRY</div>
+      <div class="hud-line"><span>DIST COVERED:</span> <span class="hud-value" id="tel-dist">0 km</span></div>
+      <div class="hud-line"><span>FUEL BURNED:</span> <span class="hud-value" id="tel-fuel">0.0 T</span></div>
+      <div class="hud-line"><span>CO2 EMITTED:</span> <span class="hud-value" id="tel-co2" style="color:orange">0.0 T</span></div>
+    </div>
+  </div>
+
+  <!-- NEW: Weather HUD (Top Right) -->
+  <div class="env-overlay">
+    <div class="hud-header"><i data-lucide="cloud-lightning"></i> WEATHER & OCEAN</div>
+    <div class="hud-line"><span>WIND SPEED:</span> <span class="hud-value" id="env-wind">45.0 KTS</span></div>
+    <div class="hud-line"><span>WIND DIR:</span> <span class="hud-value">SOUTH-EAST</span></div>
+    <div class="hud-line"><span>SEA STATE:</span> <span class="hud-value" style="color:orange">ROUGH (4m)</span></div>
+    <div class="hud-line"><span>TEMPERATURE:</span> <span class="hud-value" id="env-temp">-12.4 °C</span></div>
+  </div>
+
+  <!-- NEW: ML Diagnostics HUD (Bottom Right) -->
+  <div class="ml-overlay">
+    <div class="hud-header"><i data-lucide="cpu"></i> PYTORCH GRU ENGINE</div>
+    <div class="hud-line"><span>MODEL CONFIDENCE:</span> <span class="hud-value" id="ml-conf" style="color:#0f0">94.2%</span></div>
+    <div class="hud-line"><span>A* NODE LATENCY:</span> <span class="hud-value" id="ml-lat">12 ms</span></div>
+    <div class="hud-line"><span>DATA STREAM:</span> <span class="hud-value" style="color:#0f0">BYU/NIC SYNCED</span></div>
+    <div class="hud-line"><span>ICEBERG TENSORS:</span> <span class="hud-value">11 ACTIVE</span></div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    const map = L.map('map', { center: [-59.0, -66.0], zoom: 6, zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 17 }).addTo(map);
+
+    const START = [-54.8, -68.3]; // Ushuaia
+    const GOAL = [-64.7, -64.0];  // Palmer
+    
+    const goalIcon = L.divIcon({ className: 'goal-wrapper', html: '<div class="goal-beacon"></div>', iconSize: [0, 0] });
+    L.marker(GOAL, { icon: goalIcon }).addTo(map);
+    L.circleMarker(START, { radius: 8, color: '#0f0', fillColor: '#0f0', fillOpacity: 1 }).addTo(map);
+
+    // Initial Iceberg array (11 objects)
+    const icebergs = [
+      { id: "A-15", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "B-22", lat: 0, lon: 0, vx: 0, vy: 0 }, 
+      { id: "C-99", lat: 0, lon: 0, vx: 0, vy: 0 }, 
+      { id: "D-04", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "E-31", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "F-12", lat: 0, lon: 0, vx: 0, vy: 0 }, 
+      { id: "G-88", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "H-45", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "I-07", lat: 0, lon: 0, vx: 0, vy: 0 }, 
+      { id: "J-55", lat: 0, lon: 0, vx: 0, vy: 0 },
+      { id: "K-11", lat: 0, lon: 0, vx: 0, vy: 0 }  
+    ];
+
+    const icebergMarkers = [];
+    
+    function randomizeIcebergs() {
+       // Create a tight 'gate' for the ship to thread the needle through!
+       icebergs[0].lat = -59.5 + (Math.random() * 0.4 - 0.2);
+       icebergs[0].lon = -64.5; // Right side of gate
+       
+       icebergs[1].lat = -60.5 + (Math.random() * 0.4 - 0.2);
+       icebergs[1].lon = -67.5; // Left side of gate
+       
+       // Second gate
+       icebergs[2].lat = -62.5 + (Math.random() * 0.4 - 0.2);
+       icebergs[2].lon = -63.0; // Right side
+       
+       icebergs[3].lat = -63.5 + (Math.random() * 0.4 - 0.2);
+       icebergs[3].lon = -66.0; // Left side
+       
+       // Scatter the rest
+       for (let i = 4; i < icebergs.length; i++) {
+           icebergs[i].lat = -55.0 - Math.random() * 9.0;
+           icebergs[i].lon = -60.0 - Math.random() * 10.0;
+       }
+       
+       // Randomize tiny velocities
+       for (let i = 0; i < icebergs.length; i++) {
+           icebergs[i].vx = (Math.random() - 0.5) * 0.001;
+           icebergs[i].vy = (Math.random() - 0.5) * 0.001;
+       }
+    }
+    
+    randomizeIcebergs();
+
+    icebergs.forEach(berg => {
+      const icon = L.divIcon({ className: 'iceberg-wrapper', html: '<div class="iceberg-hazard-zone zone-active"></div><div class="iceberg-icon"></div>', iconSize: [0, 0] });
+      const marker = L.marker([berg.lat, berg.lon], { icon: icon }).addTo(map);
+      marker.bergData = berg;
+      icebergMarkers.push(marker);
+    });
+
+    const shipSVG = `<svg viewBox="0 0 24 24"><path d="M22,18H2v-2l1.6-4.8C3.8,10.6,4.4,10,5,10h1v-1c0-1.1,0.9-2,2-2h8c1.1,0,2,0.9,2,2v1h1c0.6,0,1.2,0.6,1.4,1.2L22,16V18z M16,10H8v1h8V10z M4.3,16h15.4l-1.3-4H5.6L4.3,16z"/><path d="M12,2v5"/><circle cx="12" cy="4" r="1" fill="#fff"/></svg>`;
+    const vesselIcon = L.divIcon({ className: 'vessel-wrapper', html: `<div class="radar-sweep-container"><div class="radar-scanner"></div></div><div class="vessel-icon">${shipSVG}</div>`, iconSize: [0, 0] });
+    const vesselMarker = L.marker(START, { icon: vesselIcon }).addTo(map);
+
+    let shipPos = [...START];
+    let routePolyline = L.polyline([], { color: '#00ffff', weight: 4, dashArray: '10, 15', opacity: 0.9 }).addTo(map);
+    let traveledPolyline = L.polyline([], { color: '#004444', weight: 3, opacity: 0.6 }).addTo(map);
+    
+    let totalDistCovered = 0;
+    const SPEED = 0.02;
+    let frameCount = 0;
+
+    function calcDist(p1, p2) {
+      const dLat = (p2[0] - p1[0]) * Math.PI / 180; const dLon = (p2[1] - p1[1]) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function calculateDynamicPath(start, goal, obstacles) {
+      let path = [start];
+      let curr = [...start];
+      const maxSteps = 150;
+      const stepSize = 0.1;
+      const safeDist = 1.6; 
+      
+      for(let i=0; i<maxSteps; i++) {
+        let gx = goal[1] - curr[1]; let gy = goal[0] - curr[0];
+        let dGoal = Math.sqrt(gx*gx + gy*gy);
+        if (dGoal < stepSize) { path.push(goal); break; }
+        
+        let fx = gx/dGoal; let fy = gy/dGoal; 
+        
+        obstacles.forEach(obs => {
+           let ox = curr[1] - obs.lon; let oy = curr[0] - obs.lat;
+           let dObs = Math.sqrt(ox*ox + oy*oy);
+           if (dObs < safeDist) {
+              let force = Math.pow((safeDist - dObs)/safeDist, 2) * 5.0;
+              fx += (ox/dObs) * force;
+              fy += (oy/dObs) * force;
+           }
+        });
+        
+        let fLen = Math.sqrt(fx*fx + fy*fy);
+        curr = [curr[0] + (fy/fLen)*stepSize, curr[1] + (fx/fLen)*stepSize];
+        path.push(curr);
+      }
+      return path;
+    }
+
+    function animate() {
+      frameCount++;
+      
+      // Fake live data updates for the new panels
+      if (frameCount % 45 === 0) {
+         document.getElementById('env-wind').innerText = (40 + Math.random() * 10).toFixed(1) + " KTS";
+         document.getElementById('env-temp').innerText = (-12 - Math.random() * 3).toFixed(1) + " °C";
+         document.getElementById('ml-conf').innerText = (91 + Math.random() * 7).toFixed(1) + "%";
+         document.getElementById('ml-lat').innerText = Math.floor(10 + Math.random() * 6) + " ms";
+      }
+
+      icebergMarkers.forEach((marker, index) => {
+         let berg = marker.bergData;
+         berg.lat += icebergs[index].vx; berg.lon += icebergs[index].vy;
+         marker.setLatLng([berg.lat, berg.lon]);
+      });
+
+      const newRoute = calculateDynamicPath(shipPos, GOAL, icebergMarkers.map(m => m.bergData));
+      routePolyline.setLatLngs(newRoute);
+
+      if (newRoute.length > 1) {
+         let nextPos = newRoute[1];
+         let dx = nextPos[1] - shipPos[1]; let dy = nextPos[0] - shipPos[0];
+         let distToNext = Math.sqrt(dx*dx + dy*dy);
+         
+         if (distToNext > 0) {
+            let actualSpeed = Math.min(SPEED, distToNext);
+            let prevPos = [...shipPos];
+            shipPos[0] += (dy/distToNext) * actualSpeed;
+            shipPos[1] += (dx/distToNext) * actualSpeed;
+            
+            totalDistCovered += calcDist(prevPos, shipPos);
+            traveledPolyline.addLatLng(shipPos);
+         }
+      }
+
+      vesselMarker.setLatLng(shipPos);
+      map.panTo([shipPos[0]-0.5, shipPos[1]], { animate: false });
+
+      document.getElementById('hud-pos').innerText = shipPos[0].toFixed(2) + "S, " + Math.abs(shipPos[1]).toFixed(2) + "W";
+      document.getElementById('tel-dist').innerText = totalDistCovered.toFixed(0) + " km";
+      document.getElementById('tel-fuel').innerText = (totalDistCovered * 0.15).toFixed(1) + " T";
+      document.getElementById('tel-co2').innerText = (totalDistCovered * 0.15 * 3.1).toFixed(1) + " T";
+
+      let closestDist = Infinity;
+      let closestId = "";
+      let threat = false;
+
+      icebergMarkers.forEach(marker => {
+        let berg = marker.bergData;
+        let d = calcDist(shipPos, [berg.lat, berg.lon]);
+        if (d < 180) { 
+           threat = true;
+           if (d < closestDist) { closestDist = d; closestId = berg.id; }
+           marker.getElement().querySelector('.iceberg-icon').classList.add('iceberg-detected');
+        } else {
+           marker.getElement().querySelector('.iceberg-icon').classList.remove('iceberg-detected');
+        }
+      });
+
+      if (threat) {
+         document.getElementById('hud-target').style.display = 'block';
+         document.getElementById('target-id').innerText = closestId;
+         document.getElementById('target-dist').innerText = closestDist.toFixed(1) + " km";
+         document.getElementById('hud-status').innerText = 'THREADING THE NEEDLE';
+         document.getElementById('hud-status').style.color = 'orange';
+      } else {
+         document.getElementById('hud-target').style.display = 'none';
+         document.getElementById('hud-status').innerText = 'OPTIMAL ROUTING';
+         document.getElementById('hud-status').style.color = '#0f0';
+      }
+
+      if (calcDist(shipPos, GOAL) > 20) {
+         requestAnimationFrame(animate);
+      } else {
+         document.getElementById('hud-status').innerText = 'RESTARTING SIMULATION...';
+         document.getElementById('hud-status').style.color = 'white';
+         setTimeout(resetSimulation, 3000);
+      }
+    }
+    
+    function resetSimulation() {
+       shipPos = [...START];
+       totalDistCovered = 0;
+       traveledPolyline.setLatLngs([]);
+       frameCount = 0;
+       
+       randomizeIcebergs();
+       
+       icebergMarkers.forEach((marker, index) => {
+           marker.bergData.lat = icebergs[index].lat;
+           marker.bergData.lon = icebergs[index].lon;
+           marker.setLatLng([icebergs[index].lat, icebergs[index].lon]);
+           marker.getElement().querySelector('.iceberg-icon').classList.remove('iceberg-detected');
+       });
+       
+       document.getElementById('hud-status').innerText = 'CONTINUOUS PATHFINDING';
+       document.getElementById('hud-status').style.color = '#0f0';
+       
+       animate();
+    }
+    
+    setTimeout(animate, 1000);
+  </script>
+</body>
+</html>

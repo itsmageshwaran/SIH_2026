@@ -1,0 +1,614 @@
+{
+  "dataset_name": "BYU/NIC Antarctic Iceberg Tracking Database",
+  "processed_timestamp": "2026-09-07T18:15:49.592686",
+  "total_icebergs_selected": 75,
+  "total_trajectory_points": 243433,
+  "lat_min": -78.289,
+  "lat_max": -45.075,
+  "lon_min": -179.987,
+  "lon_max": 179.999,
+  "avg_speed_knots": 0.062,
+  "max_speed_knots": 15.0,
+  "icebergs": [
+    {
+      "iceberg_id": "B09B",
+      "observations": 11508,
+      "start_date": "1989-08-13",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.018,
+      "total_dist_km": 9891.0
+    },
+    {
+      "iceberg_id": "A23A",
+      "observations": 10919,
+      "start_date": "1991-11-10",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.021,
+      "total_dist_km": 10511.3
+    },
+    {
+      "iceberg_id": "C15",
+      "observations": 8467,
+      "start_date": "2000-02-19",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.013,
+      "total_dist_km": 5063.2
+    },
+    {
+      "iceberg_id": "B22A",
+      "observations": 7722,
+      "start_date": "2002-03-22",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.016,
+      "total_dist_km": 5644.8
+    },
+    {
+      "iceberg_id": "B16",
+      "observations": 6712,
+      "start_date": "2000-03-12",
+      "end_date": "2020-02-29",
+      "avg_speed_knots": 0.119,
+      "total_dist_km": 37460.0
+    },
+    {
+      "iceberg_id": "C18B",
+      "observations": 6584,
+      "start_date": "2003-10-16",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.036,
+      "total_dist_km": 11940.1
+    },
+    {
+      "iceberg_id": "C24",
+      "observations": 6343,
+      "start_date": "2005-03-13",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.014,
+      "total_dist_km": 4153.1
+    },
+    {
+      "iceberg_id": "C21B",
+      "observations": 5653,
+      "start_date": "2005-03-13",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.028,
+      "total_dist_km": 7299.6
+    },
+    {
+      "iceberg_id": "B17A",
+      "observations": 5165,
+      "start_date": "2000-12-24",
+      "end_date": "2015-06-29",
+      "avg_speed_knots": 0.102,
+      "total_dist_km": 23692.5
+    },
+    {
+      "iceberg_id": "B15B",
+      "observations": 4915,
+      "start_date": "2000-05-04",
+      "end_date": "2014-01-07",
+      "avg_speed_knots": 0.105,
+      "total_dist_km": 23191.6
+    },
+    {
+      "iceberg_id": "C16",
+      "observations": 4903,
+      "start_date": "2000-09-14",
+      "end_date": "2014-06-06",
+      "avg_speed_knots": 0.103,
+      "total_dist_km": 23371.0
+    },
+    {
+      "iceberg_id": "B29",
+      "observations": 4903,
+      "start_date": "2010-01-24",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.012,
+      "total_dist_km": 2524.5
+    },
+    {
+      "iceberg_id": "D20A",
+      "observations": 4367,
+      "start_date": "2011-08-30",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.039,
+      "total_dist_km": 7822.1
+    },
+    {
+      "iceberg_id": "B15K",
+      "observations": 4352,
+      "start_date": "2004-01-04",
+      "end_date": "2016-12-16",
+      "avg_speed_knots": 0.131,
+      "total_dist_km": 25956.4
+    },
+    {
+      "iceberg_id": "B15F",
+      "observations": 4175,
+      "start_date": "2000-12-10",
+      "end_date": "2013-04-22",
+      "avg_speed_knots": 0.125,
+      "total_dist_km": 23503.6
+    },
+    {
+      "iceberg_id": "B28",
+      "observations": 4141,
+      "start_date": "2010-01-24",
+      "end_date": "2022-12-30",
+      "avg_speed_knots": 0.017,
+      "total_dist_km": 3134.4
+    },
+    {
+      "iceberg_id": "B09G",
+      "observations": 4129,
+      "start_date": "2012-05-06",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.045,
+      "total_dist_km": 8200.4
+    },
+    {
+      "iceberg_id": "B15G",
+      "observations": 4104,
+      "start_date": "2001-04-29",
+      "end_date": "2012-12-14",
+      "avg_speed_knots": 0.076,
+      "total_dist_km": 14604.6
+    },
+    {
+      "iceberg_id": "B15T",
+      "observations": 3853,
+      "start_date": "2007-12-23",
+      "end_date": "2019-04-03",
+      "avg_speed_knots": 0.1,
+      "total_dist_km": 17256.1
+    },
+    {
+      "iceberg_id": "C14A",
+      "observations": 3822,
+      "start_date": "2000-11-05",
+      "end_date": "2013-02-22",
+      "avg_speed_knots": 0.019,
+      "total_dist_km": 3587.7
+    },
+    {
+      "iceberg_id": "C19C",
+      "observations": 3478,
+      "start_date": "2003-06-08",
+      "end_date": "2013-03-09",
+      "avg_speed_knots": 0.145,
+      "total_dist_km": 22585.5
+    },
+    {
+      "iceberg_id": "UK324",
+      "observations": 3456,
+      "start_date": "2013-10-25",
+      "end_date": "2023-08-19",
+      "avg_speed_knots": 0.053,
+      "total_dist_km": 8082.4
+    },
+    {
+      "iceberg_id": "B21A",
+      "observations": 3411,
+      "start_date": "2002-01-24",
+      "end_date": "2012-12-02",
+      "avg_speed_knots": 0.028,
+      "total_dist_km": 4319.3
+    },
+    {
+      "iceberg_id": "A63",
+      "observations": 3301,
+      "start_date": "2012-11-24",
+      "end_date": "2021-12-12",
+      "avg_speed_knots": 0.037,
+      "total_dist_km": 5382.0
+    },
+    {
+      "iceberg_id": "B15AB",
+      "observations": 3276,
+      "start_date": "2014-09-06",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.037,
+      "total_dist_km": 5456.0
+    },
+    {
+      "iceberg_id": "B15R",
+      "observations": 3183,
+      "start_date": "2006-06-25",
+      "end_date": "2016-05-08",
+      "avg_speed_knots": 0.115,
+      "total_dist_km": 17413.4
+    },
+    {
+      "iceberg_id": "A64",
+      "observations": 3122,
+      "start_date": "2014-04-11",
+      "end_date": "2022-12-16",
+      "avg_speed_knots": 0.029,
+      "total_dist_km": 4008.3
+    },
+    {
+      "iceberg_id": "C28B",
+      "observations": 3033,
+      "start_date": "2010-04-04",
+      "end_date": "2018-08-10",
+      "avg_speed_knots": 0.12,
+      "total_dist_km": 16280.3
+    },
+    {
+      "iceberg_id": "A56",
+      "observations": 2937,
+      "start_date": "2008-05-25",
+      "end_date": "2016-11-18",
+      "avg_speed_knots": 0.09,
+      "total_dist_km": 11713.2
+    },
+    {
+      "iceberg_id": "A61",
+      "observations": 2933,
+      "start_date": "2010-01-24",
+      "end_date": "2018-02-28",
+      "avg_speed_knots": 0.061,
+      "total_dist_km": 7982.6
+    },
+    {
+      "iceberg_id": "B15J",
+      "observations": 2907,
+      "start_date": "2003-10-16",
+      "end_date": "2012-01-09",
+      "avg_speed_knots": 0.08,
+      "total_dist_km": 10511.8
+    },
+    {
+      "iceberg_id": "B09F",
+      "observations": 2845,
+      "start_date": "2011-08-14",
+      "end_date": "2019-05-28",
+      "avg_speed_knots": 0.148,
+      "total_dist_km": 18768.6
+    },
+    {
+      "iceberg_id": "C29",
+      "observations": 2794,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.007,
+      "total_dist_km": 919.0
+    },
+    {
+      "iceberg_id": "D23",
+      "observations": 2794,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.005,
+      "total_dist_km": 602.7
+    },
+    {
+      "iceberg_id": "C31",
+      "observations": 2794,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.009,
+      "total_dist_km": 1117.8
+    },
+    {
+      "iceberg_id": "C30",
+      "observations": 2794,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.006,
+      "total_dist_km": 722.1
+    },
+    {
+      "iceberg_id": "B38",
+      "observations": 2793,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.011,
+      "total_dist_km": 1338.5
+    },
+    {
+      "iceberg_id": "B39",
+      "observations": 2789,
+      "start_date": "2016-01-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.141,
+      "total_dist_km": 17479.9
+    },
+    {
+      "iceberg_id": "D15B",
+      "observations": 2761,
+      "start_date": "2016-02-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.013,
+      "total_dist_km": 1616.4
+    },
+    {
+      "iceberg_id": "C33",
+      "observations": 2692,
+      "start_date": "2016-04-07",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.042,
+      "total_dist_km": 5032.7
+    },
+    {
+      "iceberg_id": "D26",
+      "observations": 2600,
+      "start_date": "2016-04-04",
+      "end_date": "2023-05-18",
+      "avg_speed_knots": 0.012,
+      "total_dist_km": 1367.0
+    },
+    {
+      "iceberg_id": "B30",
+      "observations": 2566,
+      "start_date": "2012-05-24",
+      "end_date": "2019-06-21",
+      "avg_speed_knots": 0.08,
+      "total_dist_km": 9209.0
+    },
+    {
+      "iceberg_id": "C32",
+      "observations": 2555,
+      "start_date": "2016-01-01",
+      "end_date": "2023-03-07",
+      "avg_speed_knots": 0.027,
+      "total_dist_km": 3138.3
+    },
+    {
+      "iceberg_id": "B09D",
+      "observations": 2547,
+      "start_date": "2011-04-24",
+      "end_date": "2018-04-13",
+      "avg_speed_knots": 0.238,
+      "total_dist_km": 28976.0
+    },
+    {
+      "iceberg_id": "D15A",
+      "observations": 2522,
+      "start_date": "2016-01-31",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.052,
+      "total_dist_km": 6053.1
+    },
+    {
+      "iceberg_id": "D21B",
+      "observations": 2517,
+      "start_date": "2014-06-14",
+      "end_date": "2021-05-11",
+      "avg_speed_knots": 0.113,
+      "total_dist_km": 12834.4
+    },
+    {
+      "iceberg_id": "B09I",
+      "observations": 2473,
+      "start_date": "2015-10-22",
+      "end_date": "2022-08-03",
+      "avg_speed_knots": 0.139,
+      "total_dist_km": 15258.2
+    },
+    {
+      "iceberg_id": "B40",
+      "observations": 2283,
+      "start_date": "2016-01-01",
+      "end_date": "2022-04-06",
+      "avg_speed_knots": 0.024,
+      "total_dist_km": 2447.6
+    },
+    {
+      "iceberg_id": "B37",
+      "observations": 2262,
+      "start_date": "2016-01-01",
+      "end_date": "2022-03-11",
+      "avg_speed_knots": 0.035,
+      "total_dist_km": 3513.0
+    },
+    {
+      "iceberg_id": "D22",
+      "observations": 2241,
+      "start_date": "2013-11-10",
+      "end_date": "2020-01-16",
+      "avg_speed_knots": 0.024,
+      "total_dist_km": 2402.4
+    },
+    {
+      "iceberg_id": "B27",
+      "observations": 2105,
+      "start_date": "2008-01-03",
+      "end_date": "2014-01-30",
+      "avg_speed_knots": 0.122,
+      "total_dist_km": 11648.1
+    },
+    {
+      "iceberg_id": "B42",
+      "observations": 2038,
+      "start_date": "2017-04-07",
+      "end_date": "2022-11-04",
+      "avg_speed_knots": 0.068,
+      "total_dist_km": 6189.7
+    },
+    {
+      "iceberg_id": "B15AA",
+      "observations": 2015,
+      "start_date": "2014-09-07",
+      "end_date": "2020-03-16",
+      "avg_speed_knots": 0.116,
+      "total_dist_km": 10369.0
+    },
+    {
+      "iceberg_id": "D27",
+      "observations": 2005,
+      "start_date": "2018-02-28",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.091,
+      "total_dist_km": 8084.4
+    },
+    {
+      "iceberg_id": "A57",
+      "observations": 1979,
+      "start_date": "2008-05-25",
+      "end_date": "2016-01-01",
+      "avg_speed_knots": 0.059,
+      "total_dist_km": 5394.9
+    },
+    {
+      "iceberg_id": "B15N",
+      "observations": 1925,
+      "start_date": "2005-10-30",
+      "end_date": "2011-11-20",
+      "avg_speed_knots": 0.139,
+      "total_dist_km": 12644.6
+    },
+    {
+      "iceberg_id": "B31",
+      "observations": 1889,
+      "start_date": "2013-07-06",
+      "end_date": "2018-09-08",
+      "avg_speed_knots": 0.125,
+      "total_dist_km": 10481.3
+    },
+    {
+      "iceberg_id": "B45",
+      "observations": 1848,
+      "start_date": "2018-08-03",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.006,
+      "total_dist_km": 556.0
+    },
+    {
+      "iceberg_id": "C35",
+      "observations": 1789,
+      "start_date": "2018-08-03",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.025,
+      "total_dist_km": 2047.7
+    },
+    {
+      "iceberg_id": "B46",
+      "observations": 1755,
+      "start_date": "2018-10-28",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.078,
+      "total_dist_km": 6095.5
+    },
+    {
+      "iceberg_id": "B15X",
+      "observations": 1752,
+      "start_date": "2011-09-25",
+      "end_date": "2016-07-11",
+      "avg_speed_knots": 0.15,
+      "total_dist_km": 11649.4
+    },
+    {
+      "iceberg_id": "C36",
+      "observations": 1608,
+      "start_date": "2019-02-01",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.011,
+      "total_dist_km": 816.1
+    },
+    {
+      "iceberg_id": "B09C",
+      "observations": 1584,
+      "start_date": "2010-12-05",
+      "end_date": "2015-06-22",
+      "avg_speed_knots": 0.117,
+      "total_dist_km": 8426.3
+    },
+    {
+      "iceberg_id": "UKC33",
+      "observations": 1583,
+      "start_date": "2016-04-07",
+      "end_date": "2021-01-12",
+      "avg_speed_knots": 0.055,
+      "total_dist_km": 4219.9
+    },
+    {
+      "iceberg_id": "D21A",
+      "observations": 1583,
+      "start_date": "2013-11-13",
+      "end_date": "2018-03-14",
+      "avg_speed_knots": 0.186,
+      "total_dist_km": 16476.0
+    },
+    {
+      "iceberg_id": "D15",
+      "observations": 1572,
+      "start_date": "2011-08-30",
+      "end_date": "2017-12-31",
+      "avg_speed_knots": 0.04,
+      "total_dist_km": 2816.0
+    },
+    {
+      "iceberg_id": "B41",
+      "observations": 1562,
+      "start_date": "2016-09-09",
+      "end_date": "2020-12-23",
+      "avg_speed_knots": 0.087,
+      "total_dist_km": 6022.2
+    },
+    {
+      "iceberg_id": "C28A",
+      "observations": 1554,
+      "start_date": "2010-04-04",
+      "end_date": "2014-08-10",
+      "avg_speed_knots": 0.223,
+      "total_dist_km": 15450.1
+    },
+    {
+      "iceberg_id": "UK174",
+      "observations": 1458,
+      "start_date": "2006-02-20",
+      "end_date": "2012-03-11",
+      "avg_speed_knots": 0.031,
+      "total_dist_km": 2113.5
+    },
+    {
+      "iceberg_id": "B47",
+      "observations": 1436,
+      "start_date": "2019-09-20",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.02,
+      "total_dist_km": 1254.4
+    },
+    {
+      "iceberg_id": "D28",
+      "observations": 1433,
+      "start_date": "2019-09-23",
+      "end_date": "2023-08-25",
+      "avg_speed_knots": 0.123,
+      "total_dist_km": 7865.8
+    },
+    {
+      "iceberg_id": "UK235",
+      "observations": 1433,
+      "start_date": "2008-01-19",
+      "end_date": "2019-06-06",
+      "avg_speed_knots": 0.108,
+      "total_dist_km": 9273.4
+    },
+    {
+      "iceberg_id": "UK192",
+      "observations": 1396,
+      "start_date": "2008-02-11",
+      "end_date": "2013-09-30",
+      "avg_speed_knots": 0.057,
+      "total_dist_km": 3520.7
+    },
+    {
+      "iceberg_id": "B15Z",
+      "observations": 1370,
+      "start_date": "2014-09-08",
+      "end_date": "2018-06-08",
+      "avg_speed_knots": 0.25,
+      "total_dist_km": 15224.8
+    },
+    {
+      "iceberg_id": "UK093",
+      "observations": 1365,
+      "start_date": "2011-08-30",
+      "end_date": "2015-05-25",
+      "avg_speed_knots": 0.049,
+      "total_dist_km": 2971.3
+    }
+  ]
+}

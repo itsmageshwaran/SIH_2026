@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antarctic AI Navigation & Iceberg Trajectory Forecasting | SIH</title>
+  <meta name="description" content="AI-powered polar maritime navigation: GRU trajectory forecasting, A* route optimization, collision risk mapping — Smart India Hackathon prototype.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- Leaflet Heat -->
+  <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app-container">
+
+  <!-- ═══ TOP NAVBAR ═══ -->
+  <header id="top-navbar">
+    <div class="brand-group">
+      <div class="logo-badge"><i data-lucide="compass"></i></div>
+      <div>
+        <div class="brand-title">ANTARCTIC <span class="accent-cyan">NAVIGATOR AI</span></div>
+        <div class="brand-sub">Smart India Hackathon (SIH) • BYU/NIC Database v7.1 • PyTorch GRU • MC Dropout Ensemble</div>
+      </div>
+    </div>
+    <div class="stats-ribbon">
+      <div class="stat-badge"><span class="stat-dot green"></span><span class="stat-label">Status:</span><span class="stat-val">LIVE</span></div>
+      <div class="stat-badge"><span class="stat-label">Bergs:</span><span class="stat-val" id="stat-bergs">75</span></div>
+      <div class="stat-badge"><span class="stat-label">Tracks:</span><span class="stat-val">243,433 pts</span></div>
+      <div class="stat-badge"><span class="stat-label">Vessels:</span><span class="stat-val" id="stat-vessels">8</span></div>
+      <div class="stat-badge highlight"><i data-lucide="shield-check" class="badge-icon"></i><span class="stat-label">GRU vs Baseline (+48h):</span><span class="stat-val">−26.4%</span></div>
+    </div>
+  </header>
+
+  <main id="main-content">
+
+    <!-- ═══ LEFT SIDEBAR (6 TABS) ═══ -->
+    <aside id="sidebar-controls">
+      <div class="panel-tabs">
+        <button id="tab-btn-tracking" class="tab-btn active" onclick="switchTab('tracking')"><i data-lucide="radar"></i>AI Track</button>
+        <button id="tab-btn-routing" class="tab-btn" onclick="switchTab('routing')"><i data-lucide="route"></i>Route</button>
+        <button id="tab-btn-fuel" class="tab-btn" onclick="switchTab('fuel')"><i data-lucide="fuel"></i>Fuel</button>
+        <button id="tab-btn-india" class="tab-btn" onclick="switchTab('india')"><i data-lucide="flag"></i>🇮🇳 India</button>
+        <button id="tab-btn-analytics" class="tab-btn" onclick="switchTab('analytics')"><i data-lucide="activity"></i>Analytics</button>
+        <button id="tab-btn-benchmarks" class="tab-btn" onclick="switchTab('benchmarks')"><i data-lucide="bar-chart-3"></i>Metrics</button>
+      </div>
+
+      <!-- ──────────── TAB 1: Trajectory AI ──────────── -->
+      <div id="tab-tracking" class="tab-content active">
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="navigation"></i> Select Iceberg</div>
+          <div class="control-row">
+            <label>Target Iceberg Track:</label>
+            <select id="iceberg-select" class="custom-select" onchange="onIcebergSelected(this.value)">
+              <option value="">Loading icebergs…</option>
+            </select>
+          </div>
+          <div id="iceberg-info-card" class="glass-card mt-2">
+            <div class="info-header">
+              <span id="info-berg-id" class="berg-id-tag">---</span>
+              <span id="info-berg-date" class="berg-date-tag">---</span>
+            </div>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-lbl">Lat / Lon</span><span id="info-coords" class="info-val">---</span></div>
+              <div class="info-item"><span class="info-lbl">Size Est.</span><span id="info-size" class="info-val">---</span></div>
+              <div class="info-item"><span class="info-lbl">Drift Speed</span><span id="info-speed" class="info-val">---</span></div>
+              <div class="info-item"><span class="info-lbl">Heading</span><span id="info-heading" class="info-val">---</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drift Playback -->
+        <div class="card-section" id="playback-card">
+          <div class="section-title"><i data-lucide="play-circle"></i> Drift Playback</div>
+          <div class="control-row">
+            <div class="slider-header">
+              <label>Observation Frame:</label>
+              <span id="playback-date-lbl" class="slider-val">---</span>
+            </div>
+            <input type="range" id="playback-slider" min="0" max="100" value="100" oninput="scrubPlayback(this.value)">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="action-btn primary" style="flex:1" onclick="togglePlayback()" id="btn-play"><i data-lucide="play"></i>Play</button>
+            <button class="action-btn" style="flex:1;background:var(--bg-inset);border:1px solid var(--border);color:var(--text-secondary)" onclick="stopPlayback()"><i data-lucide="square"></i>Stop</button>
+          </div>
+        </div>
+
+        <!-- Forecast -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="clock"></i> GRU Forecast (MC Dropout)</div>
+          <div class="horizon-toggle-group">
+            <button id="btn-hz-24" class="horizon-btn" onclick="setHorizon(24)">+24 Hours</button>
+            <button id="btn-hz-48" class="horizon-btn active" onclick="setHorizon(48)">+48 Hours</button>
+          </div>
+          <button id="btn-run-predict" class="action-btn primary mt-2" onclick="runPrediction()">
+            <i data-lucide="sparkles"></i> Predict (GRU Ensemble vs Baseline)
+          </button>
+        </div>
+
+        <div id="prediction-results" class="card-section hidden">
+          <div class="section-title"><i data-lucide="crosshair"></i> Forecast Comparison</div>
+          <div class="compare-card">
+            <div class="compare-col">
+              <span class="badge gru">PyTorch GRU (MC×15)</span>
+              <div class="pred-coord" id="pred-gru-coord">--</div>
+              <div class="pred-detail" id="pred-gru-drift">Drift: --</div>
+              <div class="pred-uncertainty">Uncertainty: <span id="pred-gru-conf">--</span></div>
+            </div>
+            <div class="compare-divider"></div>
+            <div class="compare-col">
+              <span class="badge base">Const. Velocity</span>
+              <div class="pred-coord" id="pred-base-coord">--</div>
+              <div class="pred-detail">Dead reckoning</div>
+              <div class="pred-uncertainty">Linear extrapolation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB 2: Route Planner ──────────── -->
+      <div id="tab-routing" class="tab-content">
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="anchor"></i> Standard A→B Route</div>
+          <div class="control-row">
+            <label>Departure:</label>
+            <select id="route-start-select" class="custom-select">
+              <option value="Ushuaia Port (Argentina)">🇦🇷 Ushuaia Port (Argentina)</option>
+              <option value="Punta Arenas (Chile)">🇨🇱 Punta Arenas (Chile)</option>
+              <option value="Cape Town Port (South Africa)">🇿🇦 Cape Town (South Africa)</option>
+              <option value="Hobart Port (Australia)">🇦🇺 Hobart Port (Australia)</option>
+              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
+            </select>
+          </div>
+          <div class="control-row mt-2">
+            <label>Destination:</label>
+            <select id="route-goal-select" class="custom-select">
+              <option value="Palmer Station (US)">🇺🇸 Palmer Station (US)</option>
+              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
+              <option value="Rothera Station (UK)">🇬🇧 Rothera Station (UK)</option>
+              <option value="McMurdo Station (US)">🇺🇸 McMurdo Station (US)</option>
+              <option value="Davis Station (Australia)">🇦🇺 Davis Station (Australia)</option>
+            </select>
+          </div>
+          <div class="control-row mt-2">
+            <div class="slider-header"><label>Risk Avoidance Weight:</label><span id="risk-weight-val" class="slider-val">5.0</span></div>
+            <input type="range" id="risk-weight-slider" min="1" max="10" step="0.5" value="5" oninput="document.getElementById('risk-weight-val').innerText=this.value">
+          </div>
+          <label class="checkbox-container mt-2"><input type="checkbox" id="check-iceberg-hazards" checked><span>Include Live Iceberg Risk Envelopes</span></label>
+          <button class="action-btn primary mt-3" onclick="optimizeMaritimeRoute()"><i data-lucide="navigation-2"></i> Compute A* Route</button>
+          <button class="action-btn warning mt-2" onclick="simulateDynamicReplan()"><i data-lucide="alert-triangle"></i> Simulate Iceberg Replan</button>
+        </div>
+
+        <!-- Multi-Stop Planner -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="waypoints"></i> Multi-Stop Voyage</div>
+          <div id="multistop-stops">
+            <div class="control-row">
+              <label>Stop 1:</label>
+              <select class="custom-select multistop-sel">
+                <option value="Ushuaia Port (Argentina)">🇦🇷 Ushuaia Port</option>
+                <option value="Cape Town Port (South Africa)">🇿🇦 Cape Town</option>
+                <option value="Hobart Port (Australia)">🇦🇺 Hobart</option>
+              </select>
+            </div>
+            <div class="control-row mt-2">
+              <label>Stop 2:</label>
+              <select class="custom-select multistop-sel">
+                <option value="Palmer Station (US)">🇺🇸 Palmer Station</option>
+                <option value="Maitri (India)">🇮🇳 Maitri</option>
+                <option value="Bharati (India)">🇮🇳 Bharati</option>
+              </select>
+            </div>
+            <div class="control-row mt-2">
+              <label>Stop 3 (optional):</label>
+              <select class="custom-select multistop-sel">
+                <option value="">— None —</option>
+                <option value="McMurdo Station (US)">🇺🇸 McMurdo</option>
+                <option value="Rothera Station (UK)">🇬🇧 Rothera</option>
+                <option value="Davis Station (Australia)">🇦🇺 Davis</option>
+              </select>
+            </div>
+          </div>
+          <button class="action-btn primary mt-3" onclick="runMultiStopRoute()"><i data-lucide="milestone"></i> Plan Multi-Stop Voyage</button>
+        </div>
+
+        <!-- Route Results + GPX Export -->
+        <div id="route-results-card" class="card-section hidden">
+          <div class="section-title"><i data-lucide="clipboard-check"></i> Voyage Telemetry</div>
+          <div class="telemetry-grid">
+            <div class="telemetry-item"><span class="t-lbl">Distance</span><span id="res-distance" class="t-val cyan">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">Transit</span><span id="res-transit" class="t-val">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">Waypoints</span><span id="res-waypoints" class="t-val">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">Safety</span><span id="res-safety" class="t-val green">--</span></div>
+          </div>
+          <div id="replan-alert-box" class="alert-banner hidden mt-2"><i data-lucide="refresh-cw"></i><span id="replan-alert-msg">Replanning…</span></div>
+          <button id="btn-export-gpx" class="action-btn primary mt-3" onclick="exportGPX()"><i data-lucide="download"></i> Export Voyage Plan as GPX</button>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB 3: Fuel Modes ──────────── -->
+      <div id="tab-fuel" class="tab-content">
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="fuel"></i> Fuel Comparison Route</div>
+          <div class="control-row">
+            <label>From:</label>
+            <select id="fuel-start-select" class="custom-select">
+              <option value="Ushuaia Port (Argentina)">🇦🇷 Ushuaia Port (Argentina)</option>
+              <option value="Punta Arenas (Chile)">🇨🇱 Punta Arenas (Chile)</option>
+              <option value="Cape Town Port (South Africa)">🇿🇦 Cape Town Port (South Africa)</option>
+              <option value="Hobart Port (Australia)">🇦🇺 Hobart Port (Australia)</option>
+              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
+              <option value="Palmer Station (US)">🇺🇸 Palmer Station (US)</option>
+              <option value="McMurdo Station (US)">🇺🇸 McMurdo Station (US)</option>
+            </select>
+          </div>
+          <div class="control-row mt-2">
+            <label>To:</label>
+            <select id="fuel-goal-select" class="custom-select">
+              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
+              <option value="Palmer Station (US)">🇺🇸 Palmer Station (US)</option>
+              <option value="Rothera Station (UK)">🇬🇧 Rothera Station (UK)</option>
+              <option value="McMurdo Station (US)">🇺🇸 McMurdo Station (US)</option>
+              <option value="Davis Station (Australia)">🇦🇺 Davis Station (Australia)</option>
+              <option value="Casey Station (Australia)">🇦🇺 Casey Station (Australia)</option>
+              <option value="Ushuaia Port (Argentina)">🇦🇷 Ushuaia Port (Argentina)</option>
+              <option value="Cape Town Port (South Africa)">🇿🇦 Cape Town (South Africa)</option>
+              <option value="Hobart Port (Australia)">🇦🇺 Hobart Port (Australia)</option>
+            </select>
+          </div>
+          <button id="btn-compare-fuel" class="action-btn primary mt-3" onclick="runFuelComparison()"><i data-lucide="zap"></i> Compare All 3 Fuel Modes</button>
+        </div>
+        <div id="fuel-compare-panel" class="card-section hidden">
+          <div class="section-title"><i data-lucide="layers"></i> Basic / Balanced / Advanced</div>
+          <div class="fuel-panel" id="fuel-panel-cards"></div>
+          <div id="co2-saving-banner" class="co2-banner hidden"></div>
+          <div style="font-size:0.62rem;color:var(--text-muted);margin-top:6px;">* Fuel cost at $680/tonne HFO. CO₂ factor: 3.1 t/t-fuel (IMO).</div>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB 4: 🇮🇳 India Mission Planner ──────────── -->
+      <div id="tab-india" class="tab-content">
+        <!-- Mission Header -->
+        <div class="india-mission-header">
+          <div class="india-flag-badge">🇮🇳</div>
+          <div>
+            <div class="india-title">Operation Samudra Maitri</div>
+            <div class="india-sub">Antarctic Supply Mission Planner — NCPOR India</div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="ship"></i> Indian Antarctic Stations</div>
+          <div class="station-cards-row">
+            <div class="station-card" onclick="flyToStation('Maitri (India)')">
+              <div class="station-card-name">🔬 Maitri</div>
+              <div class="station-card-loc">70.767°S, 11.733°E</div>
+              <div class="station-card-region">Queen Maud Land</div>
+            </div>
+            <div class="station-card" onclick="flyToStation('Bharati (India)')">
+              <div class="station-card-name">🔬 Bharati</div>
+              <div class="station-card-loc">69.407°S, 76.187°E</div>
+              <div class="station-card-region">Larsemann Hills</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="anchor"></i> Supply Mission Route</div>
+          <div class="control-row">
+            <label>Gateway Port:</label>
+            <select id="india-port-select" class="custom-select">
+              <option value="Cape Town Port (South Africa)">🇿🇦 Cape Town Port (South Africa)</option>
+              <option value="Hobart Port (Australia)">🇦🇺 Hobart Port (Australia)</option>
+            </select>
+          </div>
+          <div class="control-row mt-2">
+            <label>Destination Station:</label>
+            <select id="india-station-select" class="custom-select">
+              <option value="Maitri (India)">🇮🇳 Maitri Station</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station</option>
+            </select>
+          </div>
+          <div class="control-row mt-2">
+            <label class="checkbox-container"><input type="checkbox" id="india-via-both" onchange="updateIndiaTripStops()"><span>Round-trip via both stations</span></label>
+          </div>
+          <button class="action-btn primary mt-3" id="btn-india-plan" onclick="runIndiaMissionPlan()">
+            <i data-lucide="flag"></i> Plan Indian Supply Mission
+          </button>
+        </div>
+
+        <div id="india-results-card" class="card-section hidden">
+          <div class="section-title"><i data-lucide="map-pin"></i> Mission Telemetry</div>
+          <div class="telemetry-grid">
+            <div class="telemetry-item"><span class="t-lbl">Total Distance</span><span id="india-res-dist" class="t-val cyan">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">Est. Transit</span><span id="india-res-time" class="t-val">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">Fuel Required</span><span id="india-res-fuel" class="t-val">--</span></div>
+            <div class="telemetry-item"><span class="t-lbl">CO₂ Footprint</span><span id="india-res-co2" class="t-val">--</span></div>
+          </div>
+          <div id="india-legs-list" class="legs-list mt-2"></div>
+          <button class="action-btn primary mt-3" onclick="exportGPX('india')"><i data-lucide="download"></i> Export Mission GPX</button>
+        </div>
+
+        <!-- Carbon Footprint Comparator -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="leaf"></i> CO₂ Savings vs Straight-Line</div>
+          <div id="carbon-compare-box" class="carbon-compare">
+            <div class="carbon-item">
+              <div class="carbon-lbl">AI Optimized Route</div>
+              <div class="carbon-val" id="carbon-ai">-- t CO₂</div>
+            </div>
+            <div class="carbon-arrow">→</div>
+            <div class="carbon-item">
+              <div class="carbon-lbl">Straight-Line Naive</div>
+              <div class="carbon-val red" id="carbon-naive">-- t CO₂</div>
+            </div>
+          </div>
+          <div id="carbon-saving-pct" class="carbon-saving hidden"></div>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB 5: Analytics ──────────── -->
+      <div id="tab-analytics" class="tab-content">
+        <!-- Live Stats -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="activity"></i> Live Situational Awareness</div>
+          <div class="stats-grid-4">
+            <div class="stat-card"><div class="stat-card-val" id="sa-bergs">75</div><div class="stat-card-lbl">Tracked Bergs</div></div>
+            <div class="stat-card danger"><div class="stat-card-val" id="sa-alerts">--</div><div class="stat-card-lbl">Lane Alerts</div></div>
+            <div class="stat-card"><div class="stat-card-val" id="sa-vessels">8</div><div class="stat-card-lbl">Active Vessels</div></div>
+            <div class="stat-card"><div class="stat-card-val" id="sa-max-threat">--</div><div class="stat-card-lbl">Highest Threat</div></div>
+          </div>
+        </div>
+
+        <!-- Collision Alert Feed -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="bell-ring"></i> Collision Alert System</div>
+          <div class="alert-feed" id="alert-feed">
+            <div class="alert-feed-item loading">Loading iceberg risk data…</div>
+          </div>
+          <button class="action-btn primary mt-2" onclick="refreshAlertFeed()"><i data-lucide="refresh-cw"></i> Refresh Alerts</button>
+        </div>
+
+        <!-- Risk Timeline Chart -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="trending-up"></i> 7-Day Shipping Lane Risk</div>
+          <div class="control-row">
+            <label>Select Iceberg:</label>
+            <select id="timeline-berg-select" class="custom-select" onchange="loadRiskTimeline(this.value)">
+              <option value="">-- select iceberg --</option>
+            </select>
+          </div>
+          <div style="position:relative;height:180px;margin-top:10px;">
+            <canvas id="risk-timeline-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- AIS Vessel Panel -->
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="ship"></i> Active Vessels (Simulated AIS)</div>
+          <div id="vessel-list"></div>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB 6: Benchmarks ──────────── -->
+      <div id="tab-benchmarks" class="tab-content">
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="award"></i> Multi-Horizon Evaluation</div>
+          <div class="table-container">
+            <table class="benchmark-table">
+              <thead><tr><th>Horizon</th><th>Model</th><th>Mean Haversine</th><th>Median</th></tr></thead>
+              <tbody>
+                <tr><td rowspan="2" class="horizon-td">24h</td><td class="base-name">Baseline CV</td><td>2.86 km</td><td>0.32 km</td></tr>
+                <tr class="gru-row"><td class="gru-name">PyTorch GRU ✦</td><td class="best-score">2.25 km (1.21 NM)</td><td class="best-score">0.17 km</td></tr>
+                <tr><td rowspan="2" class="horizon-td">48h</td><td class="base-name">Baseline CV</td><td>5.16 km</td><td>0.95 km</td></tr>
+                <tr class="gru-row"><td class="gru-name">PyTorch GRU ✦</td><td class="best-score">3.80 km (2.05 NM)</td><td class="best-score">0.47 km</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="section-title mt-3"><i data-lucide="image"></i> Trajectory Forecast Plot</div>
+          <div class="plot-preview-card">
+            <a href="/artifacts/trajectory_evaluation.png" target="_blank">
+              <img id="eval-plot-img" src="/artifacts/trajectory_evaluation.png" alt="Evaluation Plot"
+                onerror="this.style.display='none'">
+            </a>
+            <div class="plot-hint">Click to open full-resolution chart</div>
+          </div>
+        </div>
+      </div>
+
+    </aside><!-- end sidebar -->
+
+    <!-- ═══ POLAR MAP ═══ -->
+    <section id="map-container">
+      <div id="polar-map"></div>
+
+      <!-- Map Legend -->
+      <div class="map-legend">
+        <div class="legend-header">MAP LAYERS</div>
+        <div class="legend-row"><span class="legend-symbol berg-marker"></span>Iceberg (size-scaled)</div>
+        <div class="legend-row"><span class="legend-symbol track-line"></span>Historical Track</div>
+        <div class="legend-row"><span class="legend-symbol gru-cone"></span>GRU Ensemble Fan</div>
+        <div class="legend-row"><span class="legend-symbol risk-hazard"></span>Risk Heatmap</div>
+        <div class="legend-row"><span class="legend-symbol shipping-lane"></span>Shipping Lane</div>
+        <div class="legend-row"><span class="legend-symbol vessel-marker"></span>AIS Vessel</div>
+        <div class="legend-row"><span class="legend-symbol station-marker"></span>Research Station</div>
+        <div class="legend-row"><span class="legend-symbol route-line"></span>A* Optimal Route</div>
+      </div>
+
+      <!-- Quick Map Controls -->
+      <div class="map-quick-controls">
+        <button class="icon-tool-btn" title="Reset View" onclick="resetPolarView()"><i data-lucide="locate-fixed"></i></button>
+        <button class="icon-tool-btn" title="Toggle Risk Heatmap" id="btn-toggle-heat" onclick="toggleHeatmap()"><i data-lucide="flame"></i></button>
+        <button class="icon-tool-btn" title="Toggle Wind Arrows" id="btn-toggle-wind" onclick="toggleWindLayer()"><i data-lucide="wind"></i></button>
+        <button class="icon-tool-btn" title="Toggle Shipping Lanes" id="btn-toggle-lanes" onclick="toggleShippingLanes()"><i data-lucide="route"></i></button>
+        <button class="icon-tool-btn" title="Toggle Vessels" id="btn-toggle-vessels" onclick="toggleVesselsLayer()"><i data-lucide="ship"></i></button>
+        <button class="icon-tool-btn" title="Toggle Stations" id="btn-toggle-stations" onclick="toggleStationsLayer()"><i data-lucide="landmark"></i></button>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
