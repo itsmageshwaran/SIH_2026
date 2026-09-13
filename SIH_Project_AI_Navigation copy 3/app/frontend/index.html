@@ -34,29 +34,45 @@
       <div class="logo-badge"><i data-lucide="compass"></i></div>
       <div>
         <div class="brand-title">ANTARCTIC <span class="accent-cyan">NAVIGATOR AI</span></div>
-        <div class="brand-sub">Smart India Hackathon (SIH) • BYU/NIC Database v7.1 • PyTorch GRU • MC Dropout Ensemble</div>
+        <div class="brand-sub">Smart India Hackathon (SIH) • BYU/NIC Database v8.0 • PyTorch GRU • MC Dropout Ensemble</div>
       </div>
     </div>
     <div class="stats-ribbon">
-      <div class="stat-badge"><span class="stat-dot green"></span><span class="stat-label">Status:</span><span class="stat-val">LIVE</span></div>
+      <a href="/dashboard" class="sih-demo-btn" style="text-decoration:none; background:rgba(63,208,224,0.15); color:#3fd0e0; border:1px solid rgba(63,208,224,0.4);"><i data-lucide="layout-dashboard"></i> MISSION CONTROL</a>
+      <a href="/radar" class="sih-demo-btn" style="text-decoration:none; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4);"><i data-lucide="crosshair"></i> 3D RADAR</a>
+      <a href="/" class="sih-demo-btn" style="text-decoration:none; background:rgba(255,255,255,0.08); color:#e2e8f0; border:1px solid rgba(255,255,255,0.2);"><i data-lucide="home"></i> HOME</a>
+      <button id="btn-sih-demo" class="sih-demo-btn" onclick="toggleSIHDemo()">
+        <i data-lucide="play"></i> ▶ START SIH DEMO
+      </button>
+      <div class="stat-badge" id="stat-badge-provenance" style="cursor:pointer" onclick="openProvenanceModal()" title="View Verified Data Provenance & Quality">
+        <i data-lucide="database" class="badge-icon"></i>
+        <span class="stat-label">BYU/NIC:</span><span class="stat-val" id="stat-provenance-val" style="color:#94a3b8">Verifying...</span>
+      </div>
+      <div class="stat-badge" id="stat-badge-status"><span class="stat-dot green" id="stat-status-dot"></span><span class="stat-label">Status:</span><span class="stat-val" id="stat-status-val">SYNCING...</span></div>
       <div class="stat-badge"><span class="stat-label">Bergs:</span><span class="stat-val" id="stat-bergs">75</span></div>
       <div class="stat-badge"><span class="stat-label">Tracks:</span><span class="stat-val">243,433 pts</span></div>
       <div class="stat-badge"><span class="stat-label">Vessels:</span><span class="stat-val" id="stat-vessels">8</span></div>
-      <div class="stat-badge highlight"><i data-lucide="shield-check" class="badge-icon"></i><span class="stat-label">GRU vs Baseline (+48h):</span><span class="stat-val">−26.4%</span></div>
+      <div class="stat-badge highlight"><i data-lucide="shield-check" class="badge-icon"></i><span class="stat-label">GRU (+48h):</span><span class="stat-val">−25.2%</span></div>
     </div>
   </header>
+
+  <!-- ═══ SAFETY & SCREENING DISCLAIMER BANNER ═══ -->
+  <div id="safety-disclaimer-banner" class="safety-disclaimer-bar">
+    <i data-lucide="alert-triangle"></i>
+    <span>DEMO PLAYBACK ONLY — SCREENED AGAINST COARSE 1:50M CONSTRAINTS (NOT FOR OPERATIONAL NAVIGATION / BATHYMETRY UNMODELED)</span>
+  </div>
 
   <main id="main-content">
 
     <!-- ═══ LEFT SIDEBAR (6 TABS) ═══ -->
     <aside id="sidebar-controls">
       <div class="panel-tabs">
-        <button id="tab-btn-tracking" class="tab-btn active" onclick="switchTab('tracking')"><i data-lucide="radar"></i>AI Track</button>
-        <button id="tab-btn-routing" class="tab-btn" onclick="switchTab('routing')"><i data-lucide="route"></i>Route</button>
-        <button id="tab-btn-fuel" class="tab-btn" onclick="switchTab('fuel')"><i data-lucide="fuel"></i>Fuel</button>
-        <button id="tab-btn-india" class="tab-btn" onclick="switchTab('india')"><i data-lucide="flag"></i>🇮🇳 India</button>
-        <button id="tab-btn-analytics" class="tab-btn" onclick="switchTab('analytics')"><i data-lucide="activity"></i>Analytics</button>
-        <button id="tab-btn-benchmarks" class="tab-btn" onclick="switchTab('benchmarks')"><i data-lucide="bar-chart-3"></i>Metrics</button>
+        <button id="tab-btn-tracking" class="tab-btn active" onclick="switchTab('tracking')"><i data-lucide="radar"></i><span>Track</span></button>
+        <button id="tab-btn-routing" class="tab-btn" onclick="switchTab('routing')"><i data-lucide="route"></i><span>Route</span></button>
+        <button id="tab-btn-fuel" class="tab-btn" onclick="switchTab('fuel')"><i data-lucide="fuel"></i><span>Fuel</span></button>
+        <button id="tab-btn-india" class="tab-btn" onclick="switchTab('india')"><i data-lucide="flag"></i><span>🇮🇳 India</span></button>
+        <button id="tab-btn-analytics" class="tab-btn" onclick="switchTab('analytics')"><i data-lucide="activity"></i><span>Alerts</span></button>
+        <button id="tab-btn-benchmarks" class="tab-btn" onclick="switchTab('benchmarks')"><i data-lucide="bar-chart-3"></i><span>Metrics</span></button>
       </div>
 
       <!-- ──────────── TAB 1: Trajectory AI ──────────── -->
@@ -128,6 +144,16 @@
               <div class="pred-uncertainty">Linear extrapolation</div>
             </div>
           </div>
+          <div id="hybrid-physics-box" style="margin-top:8px;padding:8px 10px;background:var(--bg-inset);border-radius:6px;border:1px solid var(--border);font-size:0.75rem;">
+            <div style="font-weight:700;color:#0284c7;display:flex;align-items:center;gap:5px;">
+              <i data-lucide="compass" style="width:13px;height:13px"></i>
+              <span>Physics Prior & Residual:</span>
+              <span id="hybrid-badge" class="badge" style="background:#0ea5e920;color:#0284c7;font-size:0.65rem;padding:1px 6px;">PIML</span>
+            </div>
+            <div id="hybrid-detail" style="margin-top:4px;color:var(--text-secondary);line-height:1.4;">
+              Coriolis deflection & wind leeway integrated with ocean current advection.
+            </div>
+          </div>
         </div>
       </div>
 
@@ -162,8 +188,13 @@
             <input type="range" id="risk-weight-slider" min="1" max="10" step="0.5" value="5" oninput="document.getElementById('risk-weight-val').innerText=this.value">
           </div>
           <label class="checkbox-container mt-2"><input type="checkbox" id="check-iceberg-hazards" checked><span>Include Live Iceberg Risk Envelopes</span></label>
-          <button class="action-btn primary mt-3" onclick="optimizeMaritimeRoute()"><i data-lucide="navigation-2"></i> Compute A* Route</button>
+          <label class="checkbox-container mt-2" title="Maitri Base is situated on inland rock. Check this to route to illustrative fast-ice staging coordinate at Princess Astrid Coast (-69.85°S, 11.90°E).">
+            <input type="checkbox" id="check-operator-optin">
+            <span style="font-size:0.75rem; color:#d97706; font-weight:600;">Operator Opt-in: Fast-Ice Illustrative Staging Point (Princess Astrid Coast, ~100 km overland to Maitri)</span>
+          </label>
+          <button id="btn-optimize-route" class="action-btn primary mt-3" onclick="optimizeMaritimeRoute()"><i data-lucide="navigation-2"></i> Compute A* Route</button>
           <button class="action-btn warning mt-2" onclick="simulateDynamicReplan()"><i data-lucide="alert-triangle"></i> Simulate Iceberg Replan</button>
+          <button class="action-btn cyan mt-2" onclick="launch3DSimulation('route')"><i data-lucide="crosshair"></i> 🌐 3D Tactical Radar Simulation</button>
         </div>
 
         <!-- Multi-Stop Planner -->
@@ -208,6 +239,47 @@
             <div class="telemetry-item"><span class="t-lbl">Waypoints</span><span id="res-waypoints" class="t-val">--</span></div>
             <div class="telemetry-item"><span class="t-lbl">Safety</span><span id="res-safety" class="t-val green">--</span></div>
           </div>
+          <div id="vessel-twin-card" class="vessel-twin-box mt-2">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span class="twin-badge">CONFIGURABLE DEMONSTRATION TWIN</span>
+              <span style="font-size:0.68rem;color:var(--text-muted);font-family:var(--mono);">Polar Class PC-5</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;margin-top:4px;">
+              <div><span class="info-lbl">Ice Resistance:</span> <b id="twin-res" class="info-val" style="color:var(--amber);">-- kN</b></div>
+              <div><span class="info-lbl">Effective Spd:</span> <b id="twin-spd" class="info-val" style="color:var(--blue-dark);">-- kts</b></div>
+              <div><span class="info-lbl">Power Margin:</span> <b id="twin-pwr" class="info-val" style="color:var(--emerald);">--%</b></div>
+            </div>
+          </div>
+
+          <!-- Interactive 3D Vessel Voyage Playback Controls -->
+          <div id="voyage-playback-panel" class="voyage-playback-box mt-2">
+            <div class="voyage-playback-header">
+              <div class="voyage-playback-title">
+                <i data-lucide="navigation-2"></i>
+                <span>Voyage Playback</span>
+                <span id="voyage-status-badge" class="voyage-chip">Cruising @ 14.0 kts</span>
+              </div>
+              <div class="voyage-speed-badge" id="voyage-speed-btn" onclick="cycleVoyageSpeed()" title="Cycle Playback Speed (1x, 2x, 4x)">1x</div>
+            </div>
+            <div class="voyage-progress-container">
+              <div class="voyage-progress-track" onclick="scrubVoyageProgress(event)" title="Click to jump to voyage position">
+                <div id="voyage-progress-fill" class="voyage-progress-fill" style="width: 0%;"></div>
+              </div>
+              <div class="voyage-progress-meta">
+                <span id="voyage-progress-text">Progress: 0%</span>
+                <span id="voyage-hdg-text">HDG: --°</span>
+                <span id="voyage-leg-text">Leg: 1/--</span>
+              </div>
+            </div>
+            <div class="voyage-btn-row">
+              <button id="btn-voyage-play-pause" class="voyage-btn" onclick="toggleVoyagePlayback()"><i data-lucide="pause"></i> Pause</button>
+              <button id="btn-voyage-restart" class="voyage-btn secondary" onclick="restartVoyagePlayback()"><i data-lucide="rotate-ccw"></i> Restart</button>
+            </div>
+            <div class="voyage-disclosure-text">
+              * Illustrative route voyage playback @ 14.0 kts Great-Circle Waypoints
+            </div>
+          </div>
+
           <div id="replan-alert-box" class="alert-banner hidden mt-2"><i data-lucide="refresh-cw"></i><span id="replan-alert-msg">Replanning…</span></div>
           <button id="btn-export-gpx" class="action-btn primary mt-3" onclick="exportGPX()"><i data-lucide="download"></i> Export Voyage Plan as GPX</button>
         </div>
@@ -301,9 +373,16 @@
           <div class="control-row mt-2">
             <label class="checkbox-container"><input type="checkbox" id="india-via-both" onchange="updateIndiaTripStops()"><span>Round-trip via both stations</span></label>
           </div>
+          <div class="control-row mt-2">
+            <label class="checkbox-container" title="Maitri Base is situated on inland rock. Check this to route to illustrative fast-ice staging coordinate at Princess Astrid Coast (-69.85°S, 11.90°E).">
+              <input type="checkbox" id="india-operator-optin" checked>
+              <span style="font-size:0.75rem; color:#d97706; font-weight:600;">Operator Opt-in: Fast-Ice Illustrative Staging Point (Princess Astrid Coast, ~100 km overland to Maitri)</span>
+            </label>
+          </div>
           <button class="action-btn primary mt-3" id="btn-india-plan" onclick="runIndiaMissionPlan()">
             <i data-lucide="flag"></i> Plan Indian Supply Mission
           </button>
+          <button class="action-btn cyan mt-2" onclick="launch3DSimulation('india')"><i data-lucide="crosshair"></i> 🌐 3D Mission Radar Simulation</button>
         </div>
 
         <div id="india-results-card" class="card-section hidden">
@@ -315,6 +394,36 @@
             <div class="telemetry-item"><span class="t-lbl">CO₂ Footprint</span><span id="india-res-co2" class="t-val">--</span></div>
           </div>
           <div id="india-legs-list" class="legs-list mt-2"></div>
+
+          <!-- Interactive 3D Vessel Mission Playback Controls -->
+          <div id="india-voyage-playback-panel" class="voyage-playback-box mt-2">
+            <div class="voyage-playback-header">
+              <div class="voyage-playback-title">
+                <i data-lucide="navigation-2"></i>
+                <span>Mission Playback</span>
+                <span id="india-voyage-status-badge" class="voyage-chip">Cruising @ 14.0 kts</span>
+              </div>
+              <div class="voyage-speed-badge" id="india-voyage-speed-btn" onclick="cycleVoyageSpeed()" title="Cycle Playback Speed (1x, 2x, 4x)">1x</div>
+            </div>
+            <div class="voyage-progress-container">
+              <div class="voyage-progress-track" onclick="scrubVoyageProgress(event)" title="Click to jump to voyage position">
+                <div id="india-voyage-progress-fill" class="voyage-progress-fill" style="width: 0%;"></div>
+              </div>
+              <div class="voyage-progress-meta">
+                <span id="india-voyage-progress-text">Progress: 0%</span>
+                <span id="india-voyage-hdg-text">HDG: --°</span>
+                <span id="india-voyage-leg-text">Leg: 1/--</span>
+              </div>
+            </div>
+            <div class="voyage-btn-row">
+              <button id="btn-india-voyage-play-pause" class="voyage-btn" onclick="toggleVoyagePlayback()"><i data-lucide="pause"></i> Pause</button>
+              <button id="btn-india-voyage-restart" class="voyage-btn secondary" onclick="restartVoyagePlayback()"><i data-lucide="rotate-ccw"></i> Restart</button>
+            </div>
+            <div class="voyage-disclosure-text">
+              * Illustrative expedition playback @ 14.0 kts Great-Circle Waypoints
+            </div>
+          </div>
+
           <button class="action-btn primary mt-3" onclick="exportGPX('india')"><i data-lucide="download"></i> Export Mission GPX</button>
         </div>
 
@@ -422,6 +531,7 @@
         <div class="legend-row"><span class="legend-symbol vessel-marker"></span>AIS Vessel</div>
         <div class="legend-row"><span class="legend-symbol station-marker"></span>Research Station</div>
         <div class="legend-row"><span class="legend-symbol route-line"></span>A* Optimal Route</div>
+        <div class="legend-row"><span class="legend-symbol seaice-marker"></span>Sea-Ice Climatology</div>
       </div>
 
       <!-- Quick Map Controls -->
@@ -429,6 +539,7 @@
         <button class="icon-tool-btn" title="Reset View" onclick="resetPolarView()"><i data-lucide="locate-fixed"></i></button>
         <button class="icon-tool-btn" title="Toggle Risk Heatmap" id="btn-toggle-heat" onclick="toggleHeatmap()"><i data-lucide="flame"></i></button>
         <button class="icon-tool-btn" title="Toggle Wind Arrows" id="btn-toggle-wind" onclick="toggleWindLayer()"><i data-lucide="wind"></i></button>
+        <button class="icon-tool-btn" title="Toggle Sea-Ice Baseline" id="btn-toggle-seaice" onclick="toggleSeaIceLayer()"><i data-lucide="snowflake"></i></button>
         <button class="icon-tool-btn" title="Toggle Shipping Lanes" id="btn-toggle-lanes" onclick="toggleShippingLanes()"><i data-lucide="route"></i></button>
         <button class="icon-tool-btn" title="Toggle Vessels" id="btn-toggle-vessels" onclick="toggleVesselsLayer()"><i data-lucide="ship"></i></button>
         <button class="icon-tool-btn" title="Toggle Stations" id="btn-toggle-stations" onclick="toggleStationsLayer()"><i data-lucide="landmark"></i></button>
@@ -437,6 +548,74 @@
 
   </main>
 </div>
+
+<!-- Floating SIH Demo Presentation HUD -->
+<div id="sih-controller-hud" style="display:none;">
+  <div class="sih-hud-header">
+    <div class="sih-hud-badge">
+      <i data-lucide="award"></i> SIH JURY PRESENTATION MODE
+    </div>
+    <div class="sih-hud-step-count" id="sih-step-indicator">STEP 1 / 18</div>
+  </div>
+  <div class="sih-hud-title" id="sih-step-title">Initializing Demo…</div>
+  <div class="sih-hud-narrative" id="sih-step-desc">---</div>
+  <div class="sih-progress-track">
+    <div class="sih-progress-fill" id="sih-progress-bar"></div>
+  </div>
+  <div class="sih-hud-controls">
+    <div style="display:flex;gap:6px;">
+      <button class="sih-hud-btn" onclick="prevSIHStep()"><i data-lucide="chevron-left"></i> Prev</button>
+      <button class="sih-hud-btn" id="btn-sih-pause" onclick="toggleSIHPause()"><i data-lucide="pause"></i> Pause</button>
+      <button class="sih-hud-btn primary" onclick="nextSIHStep()">Next <i data-lucide="chevron-right"></i></button>
+    </div>
+    <button class="sih-hud-btn exit" onclick="stopSIHDemo()"><i data-lucide="x"></i> Exit Demo</button>
+  </div>
+</div>
+
+<!-- Data Provenance & Scientific Truthfulness Modal -->
+<div id="provenance-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeProvenanceModal()">
+  <div class="provenance-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="logo-badge" style="background:#10b981"><i data-lucide="database"></i></div>
+        <div>
+          <div style="font-weight:800;font-size:1.1rem;color:var(--text-primary);">BYU/NIC Antarctic Database Verification</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">Scientific Data Integrity & Provenance Ledger</div>
+        </div>
+      </div>
+      <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);" onclick="closeProvenanceModal()"><i data-lucide="x"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="provenance-stats-grid">
+      <div class="stat-card"><div class="stat-card-val" style="color:#059669">243,433</div><div class="stat-card-lbl">Official Observations</div></div>
+      <div class="stat-card"><div class="stat-card-val" style="color:#0284c7">75</div><div class="stat-card-lbl">Verified Icebergs</div></div>
+      <div class="stat-card"><div class="stat-card-val" style="color:#10b981">100.0%</div><div class="stat-card-lbl">Coordinate Validity</div></div>
+      <div class="stat-card"><div class="stat-card-val" style="color:#059669">0</div><div class="stat-card-lbl">Synthetic / Fabricated Points</div></div>
+    </div>
+    <div style="background:var(--bg-inset);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.75rem;line-height:1.6;">
+      <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);"><i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;vertical-align:middle;"></i> Canonical Source Archive Checksum:</div>
+      <div style="font-family:var(--mono);background:#fff;padding:6px 8px;border-radius:4px;border:1px solid var(--border);word-break:break-all;color:#334155;font-size:0.7rem;">
+        SHA256: 47d899c8bb1c3266d0b8c94a6f87c435dc68827a53f39dea3d78fe68ccc40cae
+      </div>
+      <div style="margin-top:8px;color:var(--text-muted);">
+        <b>Archive:</b> BYU Center for Remote Sensing (MERS) • ASCAT/OSCAT-2 Polar Scatterometer & National Ice Center (NIC)
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;font-size:0.8rem;margin-bottom:6px;color:var(--text-primary);">Scientific Data Categorization:</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:0.75rem;">
+        <div><span class="provenance-tag obs">🟢 OBSERVED</span> BYU/NIC scatterometer tracking records & live ASCAT feed</div>
+        <div><span class="provenance-tag pred">🟣 PREDICTED</span> PyTorch GRU Recurrent Neural Network + MC Dropout (15 ensemble passes)</div>
+        <div><span class="provenance-tag sim">🔵 SIMULATED</span> Relative kinematics (CPA/TCPA), ocean current advection, wind drag</div>
+        <div><span class="provenance-tag est">🟠 ESTIMATED</span> IMO GHG fuel consumption models & CO₂ emission calculations</div>
+        <div><span class="provenance-tag phys">🟡 PHYSICAL BASELINE</span> NSIDC sea-ice climatology + Leeway drift equations (Deterministic)</div>
+        <div><span class="provenance-tag twin">⚪ DEMONSTRATION TWIN</span> Configurable vessel hydrodynamics & ice-class power margin</div>
+        <div><span class="provenance-tag cache">🟤 UNVERIFIED CACHE</span> Literature-based environmental lookup (unverified offline estimates)</div>
+      </div>
+    </div>
+    <button class="action-btn primary" onclick="closeProvenanceModal()" style="margin-top:4px;">Close Integrity Report</button>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
