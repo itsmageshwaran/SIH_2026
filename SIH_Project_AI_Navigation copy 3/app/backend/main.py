@@ -39,6 +39,7 @@ from src.physics_iceberg import IcebergPhysicsModel, HybridIcebergPredictor
 from src.environmental_service import get_environmental_conditions, get_all_corridors_summary
 from src.vessel_twin import VesselDigitalTwin, VESSEL_ARCHETYPES, POLARIS_RIV_TABLE
 from src.sea_ice_service import SeaIceForecastingService
+from src.geospatial_obstacles import obstacle_engine
 
 app = FastAPI(
     title="Antarctic AI Navigation & Iceberg Trajectory Prediction API",
@@ -155,6 +156,16 @@ class PredictRequest(BaseModel):
     horizon_hours: int = Field(48, example=48, description="24 or 48 hours")
 
 
+class CustomIcebergInput(BaseModel):
+    id: Optional[str] = "BERG"
+    lat: float = Field(..., ge=-90.0, le=90.0)
+    lon: float = Field(..., ge=-180.0, le=180.0)
+    speed_knots: Optional[float] = Field(0.5, ge=0.0, le=10.0)
+    heading_deg: Optional[float] = Field(0.0, ge=0.0, le=360.0)
+    radius_km: Optional[float] = Field(30.0, ge=1.0, le=150.0)
+    size_sq_km: Optional[float] = Field(500.0, ge=1.0, le=20000.0)
+
+
 class RouteRequest(BaseModel):
     start_lat: float = Field(..., example=-54.807)
     start_lon: float = Field(..., example=-68.304)
@@ -166,6 +177,7 @@ class RouteRequest(BaseModel):
     vessel_speed_knots: float = Field(14.0, description="Cruising speed in knots")
     include_all_icebergs: bool = Field(True, description="Include live iceberg risk envelopes")
     operator_opt_in: bool = Field(False, description="Explicit operator opt-in for illustrative staging points")
+    custom_icebergs: Optional[List[CustomIcebergInput]] = None
 
 
 class ReplanRequest(BaseModel):
@@ -661,7 +673,19 @@ def optimize_route(req: RouteRequest):
     grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=1.0, safety_buffer_km=25.0)
     active_bergs = []
 
-    if req.include_all_icebergs and STATE["latest_positions"]:
+    if req.custom_icebergs is not None and len(req.custom_icebergs) > 0:
+        for berg in req.custom_icebergs:
+            b_id = berg.id or "BERG"
+            if lat_min <= berg.lat <= lat_max:
+                b_speed = berg.speed_knots if berg.speed_knots is not None else 0.5
+                b_rad = berg.radius_km if berg.radius_km is not None else 30.0
+                grid.add_iceberg_hazard(b_id, berg.lat, berg.lon, b_speed, 24.0, b_rad)
+                active_bergs.append({
+                    "iceberg_id": b_id, "lat": berg.lat, "lon": berg.lon,
+                    "speed_knots": b_speed, "heading_deg": berg.heading_deg or 0.0,
+                    "size_sq_km": berg.size_sq_km or 500.0
+                })
+    elif req.include_all_icebergs and STATE["latest_positions"]:
         for berg_id, pos in STATE["latest_positions"].items():
             if lat_min <= pos["lat"] <= lat_max:
                 grid.add_iceberg_hazard(berg_id, pos["lat"], pos["lon"], pos["speed_knots"], 24.0, 30.0)
@@ -700,6 +724,44 @@ def optimize_route(req: RouteRequest):
         res["threat_count"] = 0
 
     return res
+
+
+@app.get("/api/geospatial/context")
+def get_geospatial_context(
+    lat_min: float = Query(-78.0, ge=-90.0, le=0.0),
+    lat_max: float = Query(-50.0, ge=-90.0, le=0.0),
+    lon_min: float = Query(-180.0, ge=-180.0, le=180.0),
+    lon_max: float = Query(180.0, ge=-180.0, le=180.0)
+):
+    """
+    Returns regional land and ice-shelf boundary features within the query bounding box
+    from Natural Earth 1:50m cartographic data for approximate 3D visualization.
+    """
+    from shapely.geometry import box, mapping
+    bbox = box(lon_min, lat_min, lon_max, lat_max)
+    features = []
+
+    if obstacle_engine.tree is not None:
+        hits = obstacle_engine.tree.query(bbox)
+        for h in hits:
+            geom = obstacle_engine.geoms[h]
+            meta = obstacle_engine.feature_meta[h]
+            if geom.intersects(bbox):
+                clipped = geom.intersection(bbox)
+                if not clipped.is_empty:
+                    if clipped.geom_type in ["Polygon", "MultiPolygon"]:
+                        simplified = clipped.simplify(0.04, preserve_topology=True)
+                        features.append({
+                            "type": meta.get("type", "land"),
+                            "name": meta.get("name", "Unknown"),
+                            "geometry": mapping(simplified)
+                        })
+    return {
+        "status": "APPROXIMATE_1_50M_REGIONAL_DATA",
+        "description": "Natural Earth 1:50M regional cartographic geometry for illustrative 3D visualization only. Not certified for navigation or bathymetric safety.",
+        "bbox": [lat_min, lat_max, lon_min, lon_max],
+        "features": features
+    }
 
 
 @app.post("/api/route/compare")
@@ -1134,6 +1196,10 @@ dashboard_dir = os.path.join(frontend_dir, "dashboard")
 # Mount /dashboard to compiled Next.js export if present
 if os.path.exists(dashboard_dir):
     app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
+
+vendor_dir = os.path.join(frontend_dir, "vendor")
+if os.path.exists(vendor_dir):
+    app.mount("/vendor", StaticFiles(directory=vendor_dir), name="vendor")
 
 @app.get("/")
 def get_landing_page():
