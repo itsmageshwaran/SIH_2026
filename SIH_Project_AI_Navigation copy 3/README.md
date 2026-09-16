@@ -1,176 +1,84 @@
-# 🧊 Antarctic AI Navigation & Iceberg Trajectory Prediction System
+# NavIce Antarctica: AI-Powered Maritime Navigation System
 ### Smart India Hackathon (SIH) Prototype
 
-An end-to-end AI-powered maritime navigation system leveraging the **BYU/NIC Antarctic Iceberg Tracking Database**, **PyTorch GRU deep learning** for trajectory forecasting, a **Gaussian collision risk engine**, and **A\* pathfinding** for safe polar route optimization — served via a **FastAPI + Leaflet interactive geospatial dashboard**.
+NavIce is an end-to-end AI-powered maritime navigation system for the Antarctic region. It combines deep learning for iceberg trajectory forecasting (PyTorch GRU), a collision risk engine, and an A* pathfinding algorithm for safe polar route optimization. 
+
+The project features a brand-new **React frontend dashboard**, a **tactical 3D radar simulation**, and a robust **FastAPI backend**.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Features
+
+- **Mission Control (React):** A beautifully designed frontend for managing routing, monitoring icebergs, and tracking the vessel's journey across the Southern Ocean.
+- **3D Tactical Radar (Three.js):** A fully interactive 3D simulation of a polar research vessel navigating iceberg-filled waters. Features dynamic collision avoidance, hysteresis-stabilized evasive maneuvers, and physics-based movement.
+- **Intelligent A* Route Optimizer:** Dynamically generated maritime routes that strictly adhere to a 6.1km safety standoff from all Natural Earth 50m landmasses and ice shelves.
+- **Deep Learning Forecasts:** Predicts iceberg drift trajectories 24h/48h into the future using a PyTorch GRU trained on the BYU/NIC Antarctic Iceberg Database.
+- **Environmental Data Integration:** Merges wind, sea state, and ocean current data to accurately evaluate risk and fuel consumption.
+- **Comprehensive API:** A FastAPI backend offering endpoints for iceberg tracking, weather forecasting, risk grids, and trajectory benchmarks.
+
+---
+
+## 🛠 Quick Start
 
 ### 1. Create Virtual Environment & Install Dependencies
-```bash
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+*(Assuming Windows PowerShell)*
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate
+pip install -r requirements.txt
 ```
 
 ### 2. Run the Data Preprocessing Pipeline
-```bash
-PYTHONPATH=. ./venv/bin/python src/preprocessing.py \
-  --raw_dir stats_database_v7.1 \
-  --output data/processed/iceberg_tracks_clean.csv \
-  --top_n 75
+```powershell
+python src/preprocessing.py --raw_dir stats_database_v7.1 --output data/processed/iceberg_tracks_clean.csv --top_n 75
 ```
-**Output:** `data/processed/iceberg_tracks_clean.csv` (243,433 trajectory points from 75 high-fidelity tracks)
 
 ### 3. Train the PyTorch GRU Model
-```bash
-PYTHONPATH=. ./venv/bin/python src/train_gru.py \
-  --epochs 10 \
-  --batch_size 128
+```powershell
+python src/train_gru.py --epochs 10 --batch_size 128
 ```
-**Output:** `models/gru_iceberg.pt` checkpoint + `models/feature_scaler.pkl`  
-**Hardware:** Automatically utilizes Apple Silicon MPS GPU acceleration.
 
 ### 4. Evaluate Models & Generate Benchmark Plots
-```bash
-PYTHONPATH=. ./venv/bin/python src/evaluate.py
-```
-**Output:** `models/eval_metrics.json` + `artifacts/trajectory_evaluation.png`
-
-### 5. Test Route Optimizer (Self-Contained Demo)
-```bash
-PYTHONPATH=. ./venv/bin/python src/route_optimizer.py --test
+```powershell
+python src/evaluate.py
 ```
 
-### 6. Start the Interactive Web Dashboard
-```bash
-PYTHONPATH=. ./venv/bin/uvicorn app.backend.main:app --host 127.0.0.1 --port 8000
+### 5. Start the Integrated Web Dashboard (Backend + React UI)
+The FastAPI application serves both the API and the React frontend on the same port.
+```powershell
+python -m uvicorn app.backend.main:app --host 0.0.0.0 --port 8000
 ```
-Open **http://127.0.0.1:8000** in your browser.
+Open your browser and navigate to **http://localhost:8000** to access the Mission Control dashboard.
 
 ---
 
-## 📊 Benchmark Results (on Test Set — 12 Icebergs, 46,576 Windows)
+## 🏗 Project Architecture
 
-| Horizon | Model | Mean Haversine Error | Median Error |
-|---------|-------|---------------------|--------------|
-| +24h | Constant Velocity Baseline | 2.86 km (1.55 NM) | 0.32 km |
-| +24h | **PyTorch GRU** | **2.25 km (1.21 NM)** | **0.17 km** |
-| +48h | Constant Velocity Baseline | 5.16 km (2.78 NM) | 0.95 km |
-| +48h | **PyTorch GRU** | **3.80 km (2.05 NM)** | **0.47 km** |
-
-**GRU improves over Constant Velocity baseline by: +21.3% (24h) / +26.4% (48h)**
+- **`app/frontend/new_ui/`**: The compiled React application, built with Vite, serving the main Mission Control dashboard.
+- **`app/frontend/radar_simulation.html`**: The 3D Three.js tactical radar simulation that communicates directly with the backend route optimizer.
+- **`app/backend/main.py`**: The FastAPI application serving all API endpoints and mounting the static frontend files.
+- **`src/route_optimizer.py`**: The core A* routing logic utilizing geospatial collision detection against Antarctic coastlines.
+- **`src/train_gru.py`**: The PyTorch model training pipeline for iceberg forecasting.
+- **`src/geospatial_obstacles.py`**: Geographic validation engine ensuring safe offshore navigation and realistic roadstead snapping.
 
 ---
 
-## 📁 Project Structure
+## 🇮🇳 Indian Antarctic Stations Supported
 
-```
-ml dataset/
-├── data/
-│   ├── raw/                           # Downloaded BYU/NIC CSV archives
-│   └── processed/
-│       ├── iceberg_tracks_clean.csv   # Unified clean 75-track dataset
-│       └── metadata_summary.json      # Dataset stats & iceberg catalog
-├── models/
-│   ├── gru_iceberg.pt                 # PyTorch GRU checkpoint (best epoch)
-│   ├── feature_scaler.pkl             # StandardScaler for input features
-│   ├── train_history.json             # Per-epoch loss curves
-│   └── eval_metrics.json              # Full benchmark comparison
-├── src/
-│   ├── preprocessing.py               # Data pipeline: download → clean → features
-│   ├── features.py                    # Sequence windows, scaling, Datasets
-│   ├── baseline.py                    # Constant Velocity dead-reckoning model
-│   ├── train_gru.py                   # PyTorch GRU architecture & training loop
-│   ├── evaluate.py                    # Multi-horizon metrics & trajectory plots
-│   └── route_optimizer.py             # Risk grid & A* maritime pathfinding
-├── app/
-│   ├── backend/
-│   │   └── main.py                    # FastAPI REST server
-│   └── frontend/
-│       ├── index.html                 # Polar Leaflet map dashboard
-│       ├── style.css                  # Dark mode glassmorphism UI
-│       └── app.js                     # API connectors & map interactions
-├── artifacts/
-│   └── trajectory_evaluation.png      # Benchmark plot (actual vs pred)
-├── requirements.txt
-└── README.md
-```
+| Station | Coordinates | Region | Access |
+|---------|-------------|--------|--------|
+| **Princess Astrid (Maitri)** | 69.85°S, 11.90°E | Queen Maud Land | Coastal Staging |
+| **Bharati** | 69.40°S, 76.18°E | Larsemann Hills | Coastal Port |
+
+*(Note: Maitri Base is strictly an inland facility. The application intelligently roots vessels to the coastal staging area on the Princess Astrid Coast.)*
 
 ---
 
-## 🌊 API Endpoints
+## ⚙️ Model Benchmark (GRU vs Baseline)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/health` | Server health & model loading status |
-| `GET` | `/api/stations` | Antarctic research stations & ports |
-| `GET` | `/api/icebergs` | Full iceberg catalog with latest positions |
-| `GET` | `/api/icebergs/{id}/track` | Historical trajectory for a specific iceberg |
-| `POST` | `/api/predict` | GRU vs Baseline 24h/48h forecast |
-| `POST` | `/api/route/optimize` | A* optimal collision-free route |
-| `POST` | `/api/route/replan` | Dynamic rerouting around encroaching icebergs |
-| `GET` | `/api/benchmarks` | Full model evaluation metrics JSON |
-| `GET` | `/artifacts/trajectory_evaluation.png` | Benchmark trajectory plot |
-
----
-
-## 🧠 Model Architecture
-
-**PyTorch GRU Sequence Model:**
-- **Input:** 13-dimensional daily feature vectors (lat, lon, vx, vy, speed, sin/cos heading, sin/cos DOY, wind_u, wind_v, curr_u, curr_v)
-- **Sequence Length:** 14 days sliding window
-- **Architecture:** Input FC layer → 2-layer GRU (hidden=128) → Dual pooling head → Multi-horizon regressor
-- **Output:** Displacement deltas `[Δlat₁, Δlon₁, Δlat₂, Δlon₂]` for +24h and +48h
-- **Training:** AdamW optimizer, SmoothL1 (Huber) loss, Cosine Annealing LR, gradient clipping, MPS acceleration
-
-**Constant Velocity Baseline:**
-- Spherical dead-reckoning using last observed speed and heading via great-circle projection
-
----
-
-## 🗺️ Route Optimizer
-
-**Risk Grid:**
-- 0.5° × 0.5° spatial grid covering [-78°, -50°S] × [-180°, 180°E]
-- Gaussian kernel hazard density per iceberg with expanding σ over forecast horizon
-
-**A\* Pathfinder:**
-- 8-connected polar navigation graph
-- Combined cost: `dist × (1 + λ_fuel × sea_state) + λ_risk × Risk²`
-- Antarctic landmask avoidance, antimeridian wrap-around
-- Dynamic replanning when icebergs drift within 25 km safety perimeter
-
----
-
-## 🇮🇳 Indian Antarctic Stations
-
-| Station | Coordinates | Region |
-|---------|-------------|--------|
-| **Maitri** | 70.767°S, 11.733°E | Queen Maud Land |
-| **Bharati** | 69.407°S, 76.187°E | Larsemann Hills |
-
----
-
-## 📦 Dependencies
-
-```
-torch>=2.0      # PyTorch GRU model + MPS acceleration
-numpy, pandas   # Data processing
-scikit-learn    # StandardScaler
-matplotlib      # Trajectory visualization plots
-fastapi         # REST API server
-uvicorn         # ASGI server
-scipy           # Spatial computations
-requests        # BYU dataset auto-download
-```
-
----
-
-## 🔮 Future Enhancements
-
-- Integrate real ERA5 reanalysis wind/ocean current grids
-- LSTM attention mechanism for long-range seasonal dependencies
-- Ensemble model (GRU + physics-based ocean model)
-- 3D iceberg keel depth estimation for draft-based collision risk
-- Automatic AIS vessel data integration for live traffic awareness
+| Horizon | Model | Mean Error | Median Error |
+|---------|-------|------------|--------------|
+| +24h | Constant Velocity | 2.86 km | 0.32 km |
+| +24h | **PyTorch GRU** | **2.25 km** | **0.17 km** |
+| +48h | Constant Velocity | 5.16 km | 0.95 km |
+| +48h | **PyTorch GRU** | **3.80 km** | **0.47 km** |
