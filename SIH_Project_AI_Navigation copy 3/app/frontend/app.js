@@ -52,12 +52,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadRiskHeatmap();
   populateTimelineBergSelect();
   refreshAlertFeed();
+
+  // Initialize Weather Tab with default location data
+  setTimeout(() => {
+    map.fireEvent('click', { latlng: L.latLng(-68, -40) });
+  }, 1000);
 });
 
 // ─── Map Init ─────────────────────────────────────────────────────────────
 function initMap() {
-  map = L.map("polar-map", {center:[-60,0], zoom:3, minZoom:2, maxZoom:12, zoomControl:false});
+  map = L.map("polar-map", {center:[-60,0], zoom:3, minZoom:2, maxZoom:13, zoomControl:false});
   L.control.zoom({position:"bottomleft"}).addTo(map);
+
+  const mapActions = L.control({position: 'topright'});
+  mapActions.onAdd = function() {
+    const div = L.DomUtil.create('div', 'map-actions-ctrl');
+    div.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:4px; margin: 10px;">
+        <button onclick="map.setView([-60,0], 3)" class="action-btn" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border); padding:6px 10px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); font-family:var(--sans); font-size:12px;"><i data-lucide="maximize" style="width:14px;height:14px;"></i> Reset View</button>
+        <button onclick="if(lastRouteWaypoints && lastRouteWaypoints.length) { map.fitBounds(L.latLngBounds(lastRouteWaypoints.map(w=>[w.lat,w.lon])),{padding:[60,60]}); } else { alert('No active route to fit.'); }" class="action-btn" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border); padding:6px 10px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); font-family:var(--sans); font-size:12px;"><i data-lucide="route" style="width:14px;height:14px;"></i> Fit Route</button>
+      </div>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  mapActions.addTo(map);
 
   // Esri World Ocean Base (free, no API key)
   L.tileLayer(
@@ -81,6 +100,46 @@ function initMap() {
   heatmapLayer     = L.layerGroup().addTo(map);
 
   map.on("zoomend", updateVesselZoomScale);
+
+  // Environmental Map Click
+  map.on("click", async (e) => {
+    // Only query if Weather tab is active (or maybe always populate it?)
+    // Let's populate it so it's ready when user switches
+    const lat = e.latlng.lat.toFixed(3);
+    const lon = e.latlng.lng.toFixed(3);
+    document.getElementById("env-loc").innerText = `${lat}°, ${lon}°`;
+    document.getElementById("env-temp").innerText = "Loading...";
+    document.getElementById("env-wind").innerText = "Loading...";
+    
+    try {
+      const res = await fetch(`/api/environmental/current?lat=${e.latlng.lat}&lon=${e.latlng.lng}`);
+      const data = await res.json();
+      
+      document.getElementById("env-temp").innerText = `${data.air_temp_c}°C`;
+      document.getElementById("env-wind").innerText = `${data.wind_speed_knots} kts`;
+      document.getElementById("env-wind-dir").innerText = `${data.wind_direction_deg}°`;
+      document.getElementById("env-gust").innerText = `${data.wind_gusts_knots}`;
+      
+      const speedMs = Math.sqrt(data.ocean_current_u_ms**2 + data.ocean_current_v_ms**2).toFixed(2);
+      document.getElementById("env-curr").innerText = `${speedMs} m/s`;
+      document.getElementById("env-sea-temp").innerText = `${data.sea_surface_temp_c}°C`;
+      document.getElementById("env-wave-ht").innerText = `${data.wave_height_m} m`;
+      document.getElementById("env-wave-pd").innerText = `${data.wave_period_s} s`;
+      
+      document.getElementById("env-regime").innerText = data.current_regime;
+
+      const iceRes = await fetch(`/api/sea-ice/forecast?days=1`); // Uses requested location if passed? Wait, /api/sea-ice/forecast expects ?lat=X&lon=Y if supported? Let's check. 
+      // Actually, passing ?lat=${e.latlng.lat}&lon=${e.latlng.lng} will get the ice for that point.
+      const iceRes2 = await fetch(`/api/sea-ice/forecast?lat=${e.latlng.lat}&lon=${e.latlng.lng}&days=1`);
+      if (iceRes2.ok) {
+        const iceData = await iceRes2.json();
+        document.getElementById("env-ice-ext").innerText = `${iceData.current_ice_state.concentration_pct}% Conc, ${iceData.current_ice_state.thickness_m}m thick`;
+      }
+    } catch (err) {
+      console.error("Failed to fetch weather for point:", err);
+      document.getElementById("env-temp").innerText = "Error";
+    }
+  });
 }
 
 // ─── Berg Sizes ──────────────────────────────────────────────────────────
@@ -903,7 +962,7 @@ function showRouteTelemetry(data, startName, goalName) {
     const replanBox = document.getElementById("replan-alert-box");
     if (replanBox) {
       replanBox.classList.remove("hidden");
-      const reason = data.error || data.label || "Route rejected by geospatial safety engine.";
+      const reason = data.error || data.message || data.label || data.status_label || "Route rejected by geospatial safety engine.";
       document.getElementById("replan-alert-msg").innerHTML = `<b>⛔ ${data.status}</b>: ${reason}`;
     }
 
@@ -1068,19 +1127,48 @@ async function runFuelComparison() {
   btn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> Computing…`;
   lucide.createIcons();
 
+  const optInChecked = document.getElementById("check-fuel-operator-optin")?.checked || false;
+
   try {
     const res = await fetch("/api/route/compare", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({start_lat:startInfo.lat,start_lon:startInfo.lon,
-        goal_lat:goalInfo.lat,goal_lon:goalInfo.lon,
-        start_name:startName,goal_name:goalName,include_all_icebergs:true})
+      body: JSON.stringify({
+        start_lat: startInfo.lat, start_lon: startInfo.lon,
+        goal_lat: goalInfo.lat, goal_lon: goalInfo.lon,
+        start_name: startName, goal_name: goalName,
+        include_all_icebergs: true,
+        operator_opt_in: optInChecked
+      })
     });
     const data = await res.json();
     const panel = document.getElementById("fuel-panel-cards");
     panel.innerHTML = "";
     document.getElementById("fuel-compare-panel").classList.remove("hidden");
     const modes = ["basic","balanced","advanced"];
-    const maxFuel = Math.max(...modes.map(m => data.modes[m]?.fuel_consumption_tonnes || 0));
+
+    // Identify successfully computed routes
+    const successfulModes = modes.filter(mk => {
+      const m = data.modes?.[mk];
+      return m && (m.status === "SCREENED_COARSE_REGIONAL_CONSTRAINTS" || m.status === "success") && m.fuel_cost_usd !== undefined && m.fuel_cost_usd !== null;
+    });
+
+    if (successfulModes.length === 0) {
+      const firstMsg = data.modes?.balanced?.message || data.modes?.basic?.message || "Route cannot be computed: destination has no direct maritime water access or is blocked by regional hazards.";
+      panel.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 4px solid #ef4444; border-radius: 6px; padding: 12px 16px; margin-bottom: 8px; color: #fca5a5; font-size: 0.8rem; line-height: 1.45;">
+          <div style="font-weight: 700; color: #ef4444; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="alert-octagon" style="width: 16px; height: 16px;"></i> ROUTE NOT NAVIGABLE BY MARITIME VESSEL
+          </div>
+          <div>${firstMsg}</div>
+          ${goalName.includes("Maitri") ? '<div style="margin-top: 8px; color: #38bdf8;">💡 <b>Solution:</b> Maitri Base is situated on inland rock in Schirmacher Oasis (~100 km from sea). Select <i>"Princess Astrid Staging Point (Maitri)"</i> as destination or check <i>"Operator Opt-in"</i> below.</div>' : ''}
+        </div>
+      `;
+      lucide.createIcons();
+      routeLayer.clearLayers();
+      return;
+    }
+
+    const maxFuel = Math.max(...modes.map(m => data.modes[m]?.fuel_consumption_tonnes || 0)) || 1;
 
     // Straight-line CO2 comparator (using Haversine formula client-side approx)
     const dx = Math.abs(goalInfo.lat - startInfo.lat);
@@ -1093,24 +1181,24 @@ async function runFuelComparison() {
 
     modes.forEach((modeKey, idx) => {
       const m = data.modes[modeKey];
-      if (!m || m.status === "failed") return;
-      const fuelPct = Math.round((m.fuel_consumption_tonnes / maxFuel) * 100);
-      const riskLabel = m.average_risk_score < 0.05 ? "✅ Safe" : m.average_risk_score < 0.2 ? "⚠️ Caution" : "🔴 High";
+      if (!m || (m.status !== "SCREENED_COARSE_REGIONAL_CONSTRAINTS" && m.status !== "success") || m.fuel_cost_usd === undefined) return;
+      const fuelPct = Math.round(((m.fuel_consumption_tonnes || 0) / maxFuel) * 100);
+      const riskLabel = (m.average_risk_score || 0) < 0.05 ? "✅ Safe" : (m.average_risk_score || 0) < 0.2 ? "⚠️ Caution" : "🔴 High";
       const valClass  = idx===0?"green":idx===1?"blue":"amber";
 
       panel.innerHTML += `<div class="fuel-mode-card">
         <div class="fuel-mode-header"><div class="fuel-mode-dot" style="background:${m.color}"></div>
         <div><div class="fuel-mode-title">${modeKey.charAt(0).toUpperCase()+modeKey.slice(1)}</div>
-        <div class="fuel-mode-sub">${m.speed_knots} kts</div></div></div>
+        <div class="fuel-mode-sub">${m.speed_knots || 12} kts</div></div></div>
         <div class="fuel-divider"></div>
-        <div class="fuel-stat"><span class="fuel-stat-lbl">Distance</span><span class="fuel-stat-val blue">${m.total_distance_km} km</span></div>
-        <div class="fuel-stat"><span class="fuel-stat-lbl">Transit</span><span class="fuel-stat-val">${m.estimated_time_hours} hrs</span></div>
-        <div class="fuel-stat"><span class="fuel-stat-lbl">Fuel (HFO)</span><span class="fuel-stat-val ${valClass}">${m.fuel_consumption_tonnes} t</span></div>
+        <div class="fuel-stat"><span class="fuel-stat-lbl">Distance</span><span class="fuel-stat-val blue">${m.total_distance_km || 0} km</span></div>
+        <div class="fuel-stat"><span class="fuel-stat-lbl">Transit</span><span class="fuel-stat-val">${m.estimated_time_hours || 0} hrs</span></div>
+        <div class="fuel-stat"><span class="fuel-stat-lbl">Fuel (HFO)</span><span class="fuel-stat-val ${valClass}">${m.fuel_consumption_tonnes || 0} t</span></div>
         <div class="fuel-bar-wrap"><div class="fuel-bar" style="width:${fuelPct}%;background:${m.color}"></div></div>
         <div class="fuel-bar-label">${fuelPct}% of max fuel</div>
         <div class="fuel-divider"></div>
-        <div class="fuel-stat"><span class="fuel-stat-lbl">Est. Cost</span><span class="fuel-stat-val">$${m.fuel_cost_usd.toLocaleString()}</span></div>
-        <div class="fuel-stat"><span class="fuel-stat-lbl">CO₂</span><span class="fuel-stat-val">${m.co2_emissions_tonnes} t</span></div>
+        <div class="fuel-stat"><span class="fuel-stat-lbl">Est. Cost</span><span class="fuel-stat-val">$${(m.fuel_cost_usd || 0).toLocaleString()}</span></div>
+        <div class="fuel-stat"><span class="fuel-stat-lbl">CO₂</span><span class="fuel-stat-val">${m.co2_emissions_tonnes || 0} t</span></div>
         <div class="fuel-stat"><span class="fuel-stat-lbl">Safety</span><span class="fuel-stat-val green">${riskLabel}</span></div>
       </div>`;
     });
@@ -1128,7 +1216,7 @@ async function runFuelComparison() {
     routeLayer.clearLayers();
     modes.forEach(mk => {
       const m = data.modes[mk];
-      if (m?.status==="success" && m.waypoints) {
+      if ((m?.status==="SCREENED_COARSE_REGIONAL_CONSTRAINTS" || m?.status==="success") && m.waypoints && m.waypoints.length > 0) {
         L.polyline(m.waypoints.map(w=>[w.lat,w.lon]),
           {color:m.color, weight:4, opacity:0.85,
            dashArray:mk==="basic"?"8,6":mk==="advanced"?"2,4":null}).addTo(routeLayer);
@@ -1193,7 +1281,7 @@ async function runIndiaMissionPlan() {
       document.getElementById("india-res-fuel").innerText = `0.0 t HFO`;
       document.getElementById("india-res-co2").innerText  = `0.0 t CO₂`;
       const legsList = document.getElementById("india-legs-list");
-      legsList.innerHTML = `<div class="leg-item" style="border-left:3px solid #ef4444;"><div class="leg-from-to" style="color:#ef4444;">⛔ ${data.status}</div><div class="leg-detail">${data.error || data.label}</div></div>`;
+      legsList.innerHTML = `<div class="leg-item" style="border-left:3px solid #ef4444;"><div class="leg-from-to" style="color:#ef4444;">⛔ ${data.status}</div><div class="leg-detail">${data.error || data.message || data.label || data.status_label}</div></div>`;
       const badge = document.getElementById("india-voyage-status-badge");
       if (badge) { badge.className = "voyage-chip halted"; badge.innerText = "⛔ PROPULSION HALTED: 0.0 kts"; }
       const btnPlay = document.getElementById("btn-india-voyage-play-pause");
@@ -1837,4 +1925,40 @@ function scheduleNextSIHStep() {
     }
   }, SIH_STEP_DURATION_MS);
 }
+
+// Cross-window communication with React parent
+window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) return;
+  const data = event.data;
+  if (!data || !data.type) return;
+
+  if (data.type === 'SET_SCENARIO') {
+    const scenarioSelect = document.getElementById('route-scenario');
+    if (scenarioSelect) {
+      scenarioSelect.value = data.payload;
+      if (typeof onScenarioChange === 'function') {
+        onScenarioChange();
+      }
+    }
+  } else if (data.type === 'PLAN_ROUTE') {
+    if (typeof planRoute === 'function') {
+      planRoute();
+    }
+  } else if (data.type === 'TOGGLE_WEATHER') {
+    const tabBtn = document.getElementById('tab-btn-weather');
+    if (tabBtn) tabBtn.click();
+  } else if (data.type === 'REQUEST_STATS') {
+    // Send back some stats to React
+    const stats = {
+      bergs: document.getElementById('stat-bergs')?.innerText,
+      vessels: document.getElementById('stat-vessels')?.innerText,
+      status: document.getElementById('stat-status-val')?.innerText
+    };
+    window.parent.postMessage({ type: 'STATS_UPDATE', payload: stats }, window.location.origin);
+  }
+});
+
+
+
+
 

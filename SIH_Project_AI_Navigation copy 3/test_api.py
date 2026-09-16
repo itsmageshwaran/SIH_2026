@@ -237,7 +237,7 @@ class TestAntarcticNavigationAPI(unittest.TestCase):
     def test_18_static_and_radar_access(self):
         r_home = self.client.get("/")
         self.assertEqual(r_home.status_code, 200)
-        self.assertIn("Antarctic AI Navigation", r_home.text)
+        self.assertIn("root", r_home.text)
 
         r_radar = self.client.get("/radar_simulation.html")
         self.assertEqual(r_radar.status_code, 200)

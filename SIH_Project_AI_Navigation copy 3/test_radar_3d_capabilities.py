@@ -1,3 +1,4 @@
+import os
 import unittest
 import json
 from fastapi.testclient import TestClient
@@ -92,9 +93,11 @@ class TestRadar3DCapabilities(unittest.TestCase):
         resp = self.client.post('/api/route/optimize', json=payload)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        if not data.get('route_found'):
-            self.assertIn(data.get('status'), ['ROUTE_BLOCKED', 'SAFETY_UNVERIFIED_DATA_INSUFFICIENT'])
-            self.assertEqual(len(data.get('waypoints', [])), 0)
+        # Strictly assert route is rejected when destination is surrounded by iceberg wall
+        self.assertFalse(data.get('route_found'), "Route MUST be rejected when destination is obstructed by iceberg wall")
+        self.assertEqual(data.get('status'), 'ROUTE_BLOCKED')
+        self.assertEqual(len(data.get('waypoints', [])), 0)
+        self.assertIn('obstructed', data.get('message', '').lower())
 
     def test_05_legacy_route_request_preserved(self):
         payload = {
@@ -111,5 +114,17 @@ class TestRadar3DCapabilities(unittest.TestCase):
         self.assertTrue(data.get('route_found', False))
         self.assertEqual(data.get('status'), 'SCREENED_COARSE_REGIONAL_CONSTRAINTS')
 
+    def test_06_frontend_contract_blocked_propulsion_halt(self):
+        """Verifies the frontend radar simulation contract explicitly halts propulsion on blocked route."""
+        radar_path = os.path.join(os.path.dirname(__file__), 'app', 'frontend', 'radar_simulation.html')
+        with open(radar_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+        self.assertIn('NO NAVIGABLE ROUTE (PROPULSION HALTED)', html)
+        self.assertIn('simSpeedMultiplier = 0.0', html)
+        self.assertIn('isPaused = true', html)
+        self.assertIn('validateFallbackRoute', html)
+        self.assertIn('Approximate 1:50M cartographic geometry', html)
+
 if __name__ == '__main__':
     unittest.main()
+

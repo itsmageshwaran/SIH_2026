@@ -69,6 +69,7 @@
       <div class="panel-tabs">
         <button id="tab-btn-tracking" class="tab-btn active" onclick="switchTab('tracking')"><i data-lucide="radar"></i><span>Track</span></button>
         <button id="tab-btn-routing" class="tab-btn" onclick="switchTab('routing')"><i data-lucide="route"></i><span>Route</span></button>
+        <button id="tab-btn-weather" class="tab-btn" onclick="switchTab('weather')"><i data-lucide="cloud"></i><span>Weather</span></button>
         <button id="tab-btn-fuel" class="tab-btn" onclick="switchTab('fuel')"><i data-lucide="fuel"></i><span>Fuel</span></button>
         <button id="tab-btn-india" class="tab-btn" onclick="switchTab('india')"><i data-lucide="flag"></i><span>🇮🇳 India</span></button>
         <button id="tab-btn-analytics" class="tab-btn" onclick="switchTab('analytics')"><i data-lucide="activity"></i><span>Alerts</span></button>
@@ -154,6 +155,42 @@
               Coriolis deflection & wind leeway integrated with ocean current advection.
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ──────────── TAB: Weather & Environment ──────────── -->
+      <div id="tab-weather" class="tab-content">
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="cloud-sun"></i> Weather</div>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-lbl">Location</span><span id="env-loc" class="info-val">Click Map...</span></div>
+            <div class="info-item"><span class="info-lbl">Air Temp</span><span id="env-temp" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Wind (kts)</span><span id="env-wind" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Direction</span><span id="env-wind-dir" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Gusts (kts)</span><span id="env-gust" class="info-val">---</span></div>
+          </div>
+        </div>
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="waves"></i> Ocean Conditions</div>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-lbl">Current (m/s)</span><span id="env-curr" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Sea Temp</span><span id="env-sea-temp" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Wave Height</span><span id="env-wave-ht" class="info-val">---</span></div>
+            <div class="info-item"><span class="info-lbl">Wave Period</span><span id="env-wave-pd" class="info-val">---</span></div>
+          </div>
+          <div class="mt-2 text-sm text-gray-400">
+            <strong>Regime:</strong> <span id="env-regime">---</span>
+          </div>
+        </div>
+        <div class="card-section">
+          <div class="section-title"><i data-lucide="snowflake"></i> Climate & Ice</div>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-lbl">Climate Data</span><span class="info-val" style="color:var(--status-warn);">UNAVAILABLE</span></div>
+            <div class="info-item"><span class="info-lbl">Sea Ice Extent</span><span id="env-ice-ext" class="info-val">Updating...</span></div>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-gray-500" style="padding: 10px;">
+          * Data fetched dynamically from LIVE_ECMWF_GFS_METEOROLOGY. Click anywhere on the map to query local conditions.
         </div>
       </div>
 
@@ -305,9 +342,10 @@
           <div class="control-row mt-2">
             <label>To:</label>
             <select id="fuel-goal-select" class="custom-select">
-              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
-              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
               <option value="Palmer Station (US)">🇺🇸 Palmer Station (US)</option>
+              <option value="Princess Astrid Staging Point (Illustrative)">🇮🇳 Princess Astrid Staging Point (Maitri)</option>
+              <option value="Bharati (India)">🇮🇳 Bharati Station (India)</option>
+              <option value="Maitri (India)">🇮🇳 Maitri Station (India)</option>
               <option value="Rothera Station (UK)">🇬🇧 Rothera Station (UK)</option>
               <option value="McMurdo Station (US)">🇺🇸 McMurdo Station (US)</option>
               <option value="Davis Station (Australia)">🇦🇺 Davis Station (Australia)</option>
@@ -317,6 +355,10 @@
               <option value="Hobart Port (Australia)">🇦🇺 Hobart Port (Australia)</option>
             </select>
           </div>
+          <label class="checkbox-container mt-2" title="Maitri Base is situated on inland rock. Check this to route to illustrative fast-ice staging coordinate at Princess Astrid Coast (-69.85°S, 11.90°E).">
+            <input type="checkbox" id="check-fuel-operator-optin">
+            <span style="font-size:0.75rem; color:#d97706; font-weight:600;">Operator Opt-in: Fast-Ice Staging for Inland Stations (Princess Astrid Coast)</span>
+          </label>
           <button id="btn-compare-fuel" class="action-btn primary mt-3" onclick="runFuelComparison()"><i data-lucide="zap"></i> Compare All 3 Fuel Modes</button>
         </div>
         <div id="fuel-compare-panel" class="card-section hidden">

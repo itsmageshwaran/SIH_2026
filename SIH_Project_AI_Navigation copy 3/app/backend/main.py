@@ -235,6 +235,7 @@ class VesselSimulationRequest(BaseModel):
 
 # ─── 1. Provenance & Data Quality Endpoints ────────────────────────────────
 @app.get("/api/health")
+@app.get("/health")
 def health_check():
     return {
         "status": "healthy",
@@ -614,7 +615,7 @@ def get_iceberg_risk(
 @app.get("/api/risk-grid")
 def get_risk_grid():
     """Returns spatial collision risk intensity coordinates for Leaflet heatmaps."""
-    grid = RiskGrid(lat_min=-78.0, lat_max=-50.0, resolution_deg=1.0, safety_buffer_km=25.0)
+    grid = RiskGrid(lat_min=-78.0, lat_max=-50.0, resolution_deg=0.5, safety_buffer_km=25.0)
     for berg_id, pos in STATE.get("latest_positions", {}).items():
         if -78.0 <= pos["lat"] <= -50.0:
             grid.add_iceberg_hazard(berg_id, pos["lat"], pos["lon"], pos["speed_knots"], 24.0, 35.0)
@@ -670,7 +671,7 @@ def optimize_route(req: RouteRequest):
     lat_min = max(-78.0, min(req.start_lat, req.goal_lat) - 5.0)
     lat_max = min(-30.0, max(req.start_lat, req.goal_lat) + 5.0)
 
-    grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=1.0, safety_buffer_km=25.0)
+    grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5, safety_buffer_km=25.0)
     active_bergs = []
 
     if req.custom_icebergs is not None and len(req.custom_icebergs) > 0:
@@ -777,7 +778,7 @@ def compare_routes(req: RouteCompareRequest):
             base_grid_data[berg_id] = pos
 
     for mode_key, profile in FUEL_PROFILES.items():
-        grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=1.0, safety_buffer_km=25.0)
+        grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5, safety_buffer_km=25.0)
         for berg_id, pos in base_grid_data.items():
             grid.add_iceberg_hazard(berg_id, pos["lat"], pos["lon"], pos["speed_knots"], 24.0, 30.0)
 
@@ -909,7 +910,7 @@ def multistop_route(req: MultiStopRequest):
     lat_min = max(-78.0, min(all_lats) - 5.0)
     lat_max = min(-30.0, max(all_lats) + 5.0)
 
-    grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=1.0, safety_buffer_km=25.0)
+    grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5, safety_buffer_km=25.0)
     if req.include_all_icebergs:
         for berg_id, pos in STATE.get("latest_positions", {}).items():
             if lat_min <= pos["lat"] <= lat_max:
@@ -1201,17 +1202,27 @@ vendor_dir = os.path.join(frontend_dir, "vendor")
 if os.path.exists(vendor_dir):
     app.mount("/vendor", StaticFiles(directory=vendor_dir), name="vendor")
 
+# Mount new UI static folders
+new_ui_dir = os.path.join(frontend_dir, "new_ui")
+if os.path.exists(new_ui_dir):
+    for folder in ["assets", "animations", "images", "models", "videos"]:
+        folder_path = os.path.join(new_ui_dir, folder)
+        if os.path.exists(folder_path):
+            app.mount(f"/{folder}", StaticFiles(directory=folder_path), name=f"new_ui_{folder}")
+
 @app.get("/")
 def get_landing_page():
-    """Serves the 3D presentation landing page."""
-    landing_file = os.path.join(frontend_dir, "landing.html")
-    if os.path.exists(landing_file):
-        return FileResponse(landing_file)
+    """Serves the new React UI."""
+    new_ui_index = os.path.join(new_ui_dir, "index.html")
+    if os.path.exists(new_ui_index):
+        return FileResponse(new_ui_index)
     return FileResponse(os.path.join(frontend_dir, "index.html"))
 
+@app.get("/simulation")
+@app.get("/map")
 @app.get("/landing")
-def get_landing_page_alias():
-    """Alias for 3D presentation landing page."""
+def get_react_routes():
+    """Serves the React UI for client-side routing."""
     return get_landing_page()
 
 @app.get("/navigator")
@@ -1253,6 +1264,13 @@ def get_navigator_style_css():
 @app.get("/navigator/app.js")
 def get_navigator_app_js():
     return get_app_js()
+
+@app.get("/ice-field.mjs")
+def get_ice_field_mjs():
+    mjs_file = os.path.join(frontend_dir, "dashboard", "ice-field.mjs")
+    if os.path.exists(mjs_file):
+        return FileResponse(mjs_file, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="ice-field.mjs not found")
 
 
 # ─── 10. Dashboard Adapter Endpoints (Next.js Mission Control Contract) ──────

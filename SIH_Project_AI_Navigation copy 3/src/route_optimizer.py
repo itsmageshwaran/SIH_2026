@@ -179,10 +179,15 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def is_land_or_shelf(lat: float, lon: float) -> bool:
     return obstacle_engine.is_land_or_shelf(lat, lon)
 
-def smooth_waypoints(waypoints: List[Dict]) -> List[Dict]:
+def smooth_waypoints(
+    waypoints: List[Dict],
+    risk_grid: Optional[Any] = None,
+    hard_risk_cutoff: float = 0.85
+) -> List[Dict]:
     """
     Applies moving average to candidate waypoints followed by an immutable
-    Post-Smoothing Validation Gate. If any smoothed segment violates land clearance,
+    Post-Smoothing Validation Gate. If any smoothed segment violates land clearance
+    or enters an iceberg hazard with risk >= hard_risk_cutoff,
     smoothing is discarded and the original path is preserved.
     """
     if len(waypoints) < 3:
@@ -209,6 +214,12 @@ def smooth_waypoints(waypoints: List[Dict]) -> List[Dict]:
         )
         if not seg_res["is_clear"]:
             return waypoints  # Revert to unsmoothed candidate path
+
+        if risk_grid is not None:
+            if risk_grid.get_risk_at(smoothed[i]["lat"], smoothed[i]["lon"]) >= hard_risk_cutoff:
+                return waypoints
+            if risk_grid.get_risk_at(smoothed[i+1]["lat"], smoothed[i+1]["lon"]) >= hard_risk_cutoff:
+                return waypoints
 
     return smoothed
 
@@ -359,6 +370,35 @@ class AStarMaritimeRouter:
 
         return neighbors
 
+    @staticmethod
+    def _blocked_response(status: str, message: str, disclaimer: str = "Screened against Natural Earth 1:50m regional geometries and BYU/NIC tracked icebergs. NO NAVIGABLE ROUTE.") -> Dict[str, Any]:
+        """Builds a fully populated blocked/rejected route response with every field the frontend expects."""
+        return {
+            "route_found": False,
+            "status": status,
+            "status_label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
+            "label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
+            "demo_playback_only": True,
+            "message": message,
+            "waypoints": [],
+            "total_distance_km": 0.0,
+            "total_distance_nm": 0.0,
+            "estimated_time_hours": 0.0,
+            "average_risk_score": 1.0,
+            "max_risk_encountered": 1.0,
+            "min_land_clearance_km": 0.0,
+            "clearance_summary": {
+                "min_land_clearance_km": 0.0,
+                "coastal_proximity_warning": True
+            },
+            "bathymetry": {
+                "status": "UNVERIFIED_NOT_MODELED",
+                "under_keel_clearance_checked": False,
+                "disclaimer": "Water depth and under-keel clearance are NOT modeled. Grounding risk is unverified."
+            },
+            "safety_disclaimer": disclaimer,
+        }
+
     def find_path(
         self,
         start_lat: float,
@@ -377,16 +417,11 @@ class AStarMaritimeRouter:
         val_start, reason_start = obstacle_engine.validate_operational_envelope(start_lat, start_lon)
         val_goal, reason_goal = obstacle_engine.validate_operational_envelope(goal_lat, goal_lon)
         if not val_start or not val_goal:
-            return {
-                "status": "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
-                "demo_playback_only": True,
-                "message": f"Endpoint outside documented operational screening coverage: {reason_start if not val_start else reason_goal}",
-                "waypoints": [],
-                "total_distance_km": 0.0,
-                "total_distance_nm": 0.0,
-                "bathymetry": {"status": "UNVERIFIED_NOT_MODELED", "under_keel_clearance_checked": False},
-                "safety_disclaimer": "Safety cannot be determined. Requested coordinates leave documented screening coverage."
-            }
+            return self._blocked_response(
+                "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
+                f"Endpoint outside documented operational screening coverage: {reason_start if not val_start else reason_goal}",
+                "Safety cannot be determined. Requested coordinates leave documented screening coverage."
+            )
 
         # Gate 2: Endpoint Operational Validity
         def _resolve_roadstead(lat: float, lon: float, name: str) -> Tuple[float, float, bool]:
@@ -410,37 +445,35 @@ class AStarMaritimeRouter:
         is_maitri_inland_start = (abs(start_lat - (-70.7658)) < 0.05 and abs(start_lon - 11.7358) < 0.05)
         is_maitri_inland_goal = (abs(goal_lat - (-70.7658)) < 0.05 and abs(goal_lon - 11.7358) < 0.05)
         if (is_maitri_inland_start or is_maitri_inland_goal) and not operator_opt_in:
-            return {
-                "status": "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
-                "demo_playback_only": True,
-                "message": "Maitri Base (-70.7658° S, 11.7358° E) is an inland facility in Schirmacher Oasis with no maritime access. Select 'Princess Astrid Staging Point (Illustrative)' with operator opt-in confirmation or supply custom surveyed fast-ice coordinates.",
-                "waypoints": [],
-                "total_distance_km": 0.0,
-                "total_distance_nm": 0.0,
-                "bathymetry": {"status": "UNVERIFIED_NOT_MODELED", "under_keel_clearance_checked": False}
-            }
+            return self._blocked_response(
+                "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
+                "Maitri Base (-70.7658\u00b0 S, 11.7358\u00b0 E) is an inland facility in Schirmacher Oasis with no maritime access. Select 'Princess Astrid Staging Point (Illustrative)' with operator opt-in confirmation or supply custom surveyed fast-ice coordinates.",
+                "Safety cannot be determined. Maitri Base is inland and cannot be reached by maritime vessel."
+            )
 
-        # Check if endpoints are on land
+        # Check if endpoints are on land or inside iceberg hazard
         if is_land_or_shelf(start_lat, start_lon):
-            return {
-                "status": "ROUTE_BLOCKED",
-                "demo_playback_only": True,
-                "message": f"Departure point ({start_lat}, {start_lon}) is located on land or permanent ice shelf.",
-                "waypoints": [],
-                "total_distance_km": 0.0,
-                "bathymetry": {"status": "UNVERIFIED_NOT_MODELED", "under_keel_clearance_checked": False}
-            }
+            return self._blocked_response(
+                "ROUTE_BLOCKED",
+                f"Departure point ({start_lat}, {start_lon}) is located on land or permanent ice shelf."
+            )
         if is_land_or_shelf(goal_lat, goal_lon):
-            return {
-                "status": "ROUTE_BLOCKED",
-                "demo_playback_only": True,
-                "message": f"Destination point ({goal_lat}, {goal_lon}) is located on land or permanent ice shelf.",
-                "waypoints": [],
-                "total_distance_km": 0.0,
-                "bathymetry": {"status": "UNVERIFIED_NOT_MODELED", "under_keel_clearance_checked": False}
-            }
+            return self._blocked_response(
+                "ROUTE_BLOCKED",
+                f"Destination point ({goal_lat}, {goal_lon}) is located on land or permanent ice shelf."
+            )
+        if self.risk_grid.get_risk_at(start_lat, start_lon) >= self.hard_risk_cutoff:
+            return self._blocked_response(
+                "ROUTE_BLOCKED",
+                f"Departure point ({start_lat}, {start_lon}) is obstructed by an active iceberg hazard envelope."
+            )
+        if self.risk_grid.get_risk_at(goal_lat, goal_lon) >= self.hard_risk_cutoff:
+            return self._blocked_response(
+                "ROUTE_BLOCKED",
+                f"Destination point ({goal_lat}, {goal_lon}) is obstructed by an active iceberg hazard envelope."
+            )
 
-        # Snap start and goal to grid resolution, ensuring grid nodes are in navigable water
+        # Snap start and goal to grid resolution, ensuring grid nodes are in navigable water (>6km standoff)
         # and have collision-free line-of-sight to the endpoint
         s_lat = round(round(start_lat / self.res) * self.res, 2)
         s_lon = round(round(start_lon / self.res) * self.res, 2)
@@ -450,15 +483,14 @@ class AStarMaritimeRouter:
             for dlo in [0.0, self.res, -self.res, 2*self.res, -2*self.res]:
                 c_lat = round(s_lat + dl, 2)
                 c_lon = round((s_lon + dlo + 540.0) % 360.0 - 180.0, 2)
-                if not is_land_or_shelf(c_lat, c_lon):
+                if not is_land_or_shelf(c_lat, c_lon) and self.risk_grid.get_risk_at(c_lat, c_lon) < self.hard_risk_cutoff:
                     chk = obstacle_engine.check_segment_clearance(start_lat, start_lon, c_lat, c_lon, min_standoff_km=0.0)
-                    if chk["is_clear"]:
+                    chk_node = obstacle_engine.check_segment_clearance(c_lat, c_lon, c_lat, c_lon, min_standoff_km=6.1)
+                    if chk["is_clear"] and chk_node["is_clear"]:
                         d = haversine_km(start_lat, start_lon, c_lat, c_lon)
                         if d < best_start_d:
                             best_start_d = d
                             best_start_node = (c_lat, c_lon)
-            if best_start_node is not None:
-                break
 
         if best_start_node is None:
             return {
@@ -471,23 +503,22 @@ class AStarMaritimeRouter:
             }
         s_lat, s_lon = best_start_node
 
-        g_lat = round(round(goal_lat / self.res) * self.res, 2)
-        g_lon = round(round(goal_lon / self.res) * self.res, 2)
+        g_lat_grid = round(round(goal_lat / self.res) * self.res, 2)
+        g_lon_grid = round(round(goal_lon / self.res) * self.res, 2)
         best_goal_node = None
         best_goal_d = 999999.0
         for dl in [0.0, self.res, -self.res, 2*self.res, -2*self.res]:
             for dlo in [0.0, self.res, -self.res, 2*self.res, -2*self.res]:
-                c_lat = round(g_lat + dl, 2)
-                c_lon = round((g_lon + dlo + 540.0) % 360.0 - 180.0, 2)
-                if not is_land_or_shelf(c_lat, c_lon):
+                c_lat = round(g_lat_grid + dl, 2)
+                c_lon = round((g_lon_grid + dlo + 540.0) % 360.0 - 180.0, 2)
+                if not is_land_or_shelf(c_lat, c_lon) and self.risk_grid.get_risk_at(c_lat, c_lon) < self.hard_risk_cutoff:
                     chk = obstacle_engine.check_segment_clearance(c_lat, c_lon, goal_lat, goal_lon, min_standoff_km=0.0)
-                    if chk["is_clear"]:
+                    chk_node = obstacle_engine.check_segment_clearance(c_lat, c_lon, c_lat, c_lon, min_standoff_km=6.1)
+                    if chk["is_clear"] and chk_node["is_clear"]:
                         d = haversine_km(c_lat, c_lon, goal_lat, goal_lon)
                         if d < best_goal_d:
                             best_goal_d = d
                             best_goal_node = (c_lat, c_lon)
-            if best_goal_node is not None:
-                break
 
         if best_goal_node is None:
             return {
@@ -499,6 +530,7 @@ class AStarMaritimeRouter:
                 "bathymetry": {"status": "UNVERIFIED_NOT_MODELED", "under_keel_clearance_checked": False}
             }
         g_lat, g_lon = best_goal_node
+        s_lat, s_lon = best_start_node
 
         start_node = (s_lat, s_lon)
         goal_node = (g_lat, g_lon)
@@ -511,7 +543,7 @@ class AStarMaritimeRouter:
         g_score: Dict[Tuple[float, float], float] = {start_node: 0.0}
         closed_set: Set[Tuple[float, float]] = set()
 
-        max_iterations = 25000
+        max_iterations = 100000
         iterations = 0
 
         while open_set and iterations < max_iterations:
@@ -522,83 +554,125 @@ class AStarMaritimeRouter:
             # Check if reached goal region
             if haversine_km(c_lat, c_lon, g_lat, g_lon) <= (1.5 * self.res * 111.0):
                 # Verify segment from current node to actual goal coordinates
-                goal_seg_check = obstacle_engine.check_segment_clearance(c_lat, c_lon, goal_lat, goal_lon, min_standoff_km=0.0)
-                if goal_seg_check["is_clear"]:
-                    raw_path = [(goal_lat, goal_lon)]
-                    curr = current
-                    while curr is not None:
-                        raw_path.append(curr)
-                        curr = came_from.get(curr)
-                    raw_path.append((start_lat, start_lon))
-                    raw_path.reverse()
+                if self.risk_grid.get_risk_at(goal_lat, goal_lon) < self.hard_risk_cutoff:
+                    goal_seg_check = obstacle_engine.check_segment_clearance(c_lat, c_lon, goal_lat, goal_lon, min_standoff_km=0.0)
+                    if goal_seg_check["is_clear"]:
+                        raw_path = [(goal_lat, goal_lon)]
+                        curr = current
+                        while curr is not None:
+                            raw_path.append(curr)
+                            curr = came_from.get(curr)
+                        raw_path.append((start_lat, start_lon))
+                        raw_path.reverse()
 
-                    # Deduplicate consecutive identical/near-identical points
-                    path = [raw_path[0]]
-                    for pt in raw_path[1:]:
-                        if haversine_km(path[-1][0], path[-1][1], pt[0], pt[1]) > 0.5:
-                            path.append(pt)
-                    if len(path) == 1:
-                        path.append((goal_lat, goal_lon))
+                        # Deduplicate consecutive identical/near-identical points
+                        path = [raw_path[0]]
+                        for pt in raw_path[1:]:
+                            if haversine_km(path[-1][0], path[-1][1], pt[0], pt[1]) > 0.5:
+                                path.append(pt)
+                        if len(path) == 1:
+                            path.append((goal_lat, goal_lon))
 
-                    # Calculate path metrics and minimum clearance
-                    total_distance_km = 0.0
-                    total_risk_exposure = 0.0
-                    min_land_clearance_km = 9999.0
-                    waypoints = []
-                    path_valid = True
+                        # Calculate path metrics and minimum clearance
+                        total_distance_km = 0.0
+                        total_risk_exposure = 0.0
+                        min_land_clearance_km = 9999.0
+                        waypoints = []
+                        path_valid = True
 
-                    for idx in range(len(path)):
-                        w_lat, w_lon = path[idx]
-                        r = self.risk_grid.get_risk_at(w_lat, w_lon)
-                        total_risk_exposure += r
-                        if idx > 0:
-                            seg_d = haversine_km(path[idx-1][0], path[idx-1][1], w_lat, w_lon)
-                            total_distance_km += seg_d
-                            is_terminal = (idx == 1 or idx == len(path) - 1)
-                            # Segment clearance check
-                            chk = obstacle_engine.check_segment_clearance(
-                                path[idx-1][0], path[idx-1][1], w_lat, w_lon,
-                                min_standoff_km=0.0 if is_terminal else 6.0
-                            )
-                            if not chk["is_clear"]:
+                        for idx in range(len(path)):
+                            w_lat, w_lon = path[idx]
+                            r = self.risk_grid.get_risk_at(w_lat, w_lon)
+                            total_risk_exposure += r
+                            if r >= self.hard_risk_cutoff:
                                 path_valid = False
                                 break
-                            min_land_clearance_km = min(min_land_clearance_km, chk.get("min_clearance_km", 9999.0))
-                        waypoints.append({"lat": round(w_lat, 3), "lon": round(w_lon, 3), "risk": round(r, 3)})
+                            if idx > 0:
+                                seg_d = haversine_km(path[idx-1][0], path[idx-1][1], w_lat, w_lon)
+                                total_distance_km += seg_d
+                                is_terminal = (idx == 1 or idx == len(path) - 1)
+                                # Segment clearance check
+                                chk = obstacle_engine.check_segment_clearance(
+                                    path[idx-1][0], path[idx-1][1], w_lat, w_lon,
+                                    min_standoff_km=0.0 if is_terminal else 6.0
+                                )
+                                if not chk["is_clear"]:
+                                    path_valid = False
+                                    break
+                                min_land_clearance_km = min(min_land_clearance_km, chk.get("min_clearance_km", 9999.0))
 
-                    if path_valid:
-                        avg_risk = total_risk_exposure / max(1, len(path))
-                        distance_nm = total_distance_km / 1.852
-                        est_hours = distance_nm / max(1.0, vessel_speed_knots)
+                                # Intermediate check against iceberg risk surface
+                                steps = max(2, int(seg_d / 25.0))
+                                for s in range(1, steps):
+                                    frac = s / steps
+                                    s_lat = path[idx-1][0] + frac * (w_lat - path[idx-1][0])
+                                    s_lon = path[idx-1][1] + frac * (w_lon - path[idx-1][1])
+                                    if self.risk_grid.get_risk_at(s_lat, s_lon) >= self.hard_risk_cutoff:
+                                        path_valid = False
+                                        break
+                                if not path_valid:
+                                    break
+                            waypoints.append({"lat": round(w_lat, 3), "lon": round(w_lon, 3), "risk": round(r, 3)})
 
-                        # Gate 5: Post-Smoothing Gate
-                        smoothed_waypoints = smooth_waypoints(waypoints)
+                        if path_valid:
+                            avg_risk = total_risk_exposure / max(1, len(path))
+                            distance_nm = total_distance_km / 1.852
+                            est_hours = distance_nm / max(1.0, vessel_speed_knots)
 
-                        return {
-                            "route_found": True,
-                            "status": "SCREENED_COARSE_REGIONAL_CONSTRAINTS",
-                            "status_label": "DEMO PLAYBACK ONLY (SCREENED AGAINST COARSE 1:50M CONSTRAINTS)",
-                            "label": "DEMO PLAYBACK ONLY (SCREENED AGAINST COARSE 1:50M CONSTRAINTS)",
-                            "demo_playback_only": True,
-                            "waypoints": smoothed_waypoints,
-                            "total_distance_km": round(total_distance_km, 1),
-                            "total_distance_nm": round(distance_nm, 1),
-                            "estimated_time_hours": round(est_hours, 1),
-                            "average_risk_score": round(avg_risk, 4),
-                            "max_risk_encountered": round(float(max(w["risk"] for w in waypoints)), 4),
-                            "min_land_clearance_km": round(min_land_clearance_km, 1),
-                            "clearance_summary": {
+                            # Gate 5: Post-Smoothing Gate
+                            smoothed_waypoints = smooth_waypoints(waypoints, self.risk_grid, self.hard_risk_cutoff)
+
+                            return {
+                                "route_found": True,
+                                "status": "SCREENED_COARSE_REGIONAL_CONSTRAINTS",
+                                "status_label": "DEMO PLAYBACK ONLY (SCREENED AGAINST COARSE 1:50M CONSTRAINTS)",
+                                "label": "DEMO PLAYBACK ONLY (SCREENED AGAINST COARSE 1:50M CONSTRAINTS)",
+                                "demo_playback_only": True,
+                                "waypoints": smoothed_waypoints,
+                                "total_distance_km": round(total_distance_km, 1),
+                                "total_distance_nm": round(distance_nm, 1),
+                                "estimated_time_hours": round(est_hours, 1),
+                                "average_risk_score": round(avg_risk, 4),
+                                "max_risk_encountered": round(float(max(w["risk"] for w in waypoints)), 4),
                                 "min_land_clearance_km": round(min_land_clearance_km, 1),
-                                "coastal_proximity_warning": min_land_clearance_km < 25.0
-                            },
-                            "bathymetry": {
-                                "status": "UNVERIFIED_NOT_MODELED",
-                                "under_keel_clearance_checked": False,
-                                "disclaimer": "Water depth and under-keel clearance are NOT modeled. Grounding risk is unverified."
-                            },
-                            "safety_disclaimer": "Screened against Natural Earth 1:50m regional geometries and BYU/NIC tracked icebergs. NOT PROOF OF NAVIGABILITY OR REAL-WORLD SAFETY.",
-                            "iterations_searched": iterations
-                        }
+                                "clearance_summary": {
+                                    "min_land_clearance_km": round(min_land_clearance_km, 1),
+                                    "coastal_proximity_warning": min_land_clearance_km < 25.0
+                                },
+                                "bathymetry": {
+                                    "status": "UNVERIFIED_NOT_MODELED",
+                                    "under_keel_clearance_checked": False,
+                                    "disclaimer": "Water depth and under-keel clearance are NOT modeled. Grounding risk is unverified."
+                                },
+                                "safety_disclaimer": "Screened against Natural Earth 1:50m regional geometries and BYU/NIC tracked icebergs. NOT PROOF OF NAVIGABILITY OR REAL-WORLD SAFETY.",
+                                "iterations_searched": iterations
+                            }
+                        else:
+                            return {
+                                "route_found": False,
+                                "status": "ROUTE_BLOCKED",
+                                "status_label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
+                                "label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
+                                "demo_playback_only": True,
+                                "waypoints": [],
+                                "total_distance_km": 0.0,
+                                "total_distance_nm": 0.0,
+                                "estimated_time_hours": 0.0,
+                                "average_risk_score": 1.0,
+                                "max_risk_encountered": 1.0,
+                                "min_land_clearance_km": 0.0,
+                                "clearance_summary": {
+                                    "min_land_clearance_km": 0.0,
+                                    "coastal_proximity_warning": True
+                                },
+                                "bathymetry": {
+                                    "status": "UNVERIFIED_NOT_MODELED",
+                                    "under_keel_clearance_checked": False,
+                                    "disclaimer": "Water depth and under-keel clearance are NOT modeled. Grounding risk is unverified."
+                                },
+                                "safety_disclaimer": "Screened against Natural Earth 1:50m regional geometries and BYU/NIC tracked icebergs. NO NAVIGABLE ROUTE.",
+                                "iterations_searched": iterations
+                            }
 
             if current in closed_set:
                 continue
@@ -620,11 +694,29 @@ class AStarMaritimeRouter:
                     heapq.heappush(open_set, (tentative_g + h, tentative_g, n_lat, n_lon))
 
         return {
+            "route_found": False,
             "status": "ROUTE_BLOCKED",
+            "status_label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
+            "label": "NO NAVIGABLE ROUTE (PROPULSION HALTED)",
             "demo_playback_only": True,
             "message": "No collision-free maritime route found around modeled land/ice obstacles within iteration constraints.",
             "waypoints": [],
             "total_distance_km": 0.0,
+            "total_distance_nm": 0.0,
+            "estimated_time_hours": 0.0,
+            "average_risk_score": 1.0,
+            "max_risk_encountered": 1.0,
+            "min_land_clearance_km": 0.0,
+            "clearance_summary": {
+                "min_land_clearance_km": 0.0,
+                "coastal_proximity_warning": True
+            },
+            "bathymetry": {
+                "status": "UNVERIFIED_NOT_MODELED",
+                "under_keel_clearance_checked": False,
+                "disclaimer": "Water depth and under-keel clearance are NOT modeled. Grounding risk is unverified."
+            },
+            "safety_disclaimer": "Screened against Natural Earth 1:50m regional geometries and BYU/NIC tracked icebergs. NO NAVIGABLE ROUTE.",
             "iterations_searched": iterations
         }
 
@@ -700,7 +792,7 @@ class AntarcticRouteOptimizer:
     ) -> Dict[str, Any]:
         lat_min = max(-78.0, min(start_lat, goal_lat) - 5.0)
         lat_max = min(-30.0, max(start_lat, goal_lat) + 5.0)
-        grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=1.0)
+        grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5)
         router = AStarMaritimeRouter(grid, risk_weight=risk_weight)
         res = router.find_path(
             start_lat, start_lon, goal_lat, goal_lon,
@@ -708,6 +800,49 @@ class AntarcticRouteOptimizer:
             vessel_speed_knots=vessel_speed_knots,
             operator_opt_in=operator_opt_in
         )
+        
+        if res.get("status") == "SCREENED_COARSE_REGIONAL_CONSTRAINTS" and res.get("waypoints"):
+            # 1. Line-of-sight string pulling
+            waypoints = self.post_process_route_smoothing(res["waypoints"], min_standoff_km=2.0)
+            
+            # 2. Densify to max 20km steps so the frontend does not need splining
+            dense_wps = []
+            for i in range(len(waypoints) - 1):
+                p1 = waypoints[i]
+                p2 = waypoints[i+1]
+                dense_wps.append(p1)
+                
+                # Check distance
+                d = haversine_km(p1["lat"], p1["lon"], p2["lat"], p2["lon"])
+                if d > 20.0:
+                    steps = int(d / 20.0)
+                    for step in range(1, steps):
+                        frac = step / float(steps)
+                        i_lat = p1["lat"] + frac * (p2["lat"] - p1["lat"])
+                        i_lon = p1["lon"] + frac * (p2["lon"] - p1["lon"])
+                        # Simple linear interp for risk
+                        i_risk = p1.get("risk", 0.0) + frac * (p2.get("risk", 0.0) - p1.get("risk", 0.0))
+                        dense_wps.append({"lat": round(i_lat, 4), "lon": round(i_lon, 4), "risk": round(i_risk, 4)})
+            dense_wps.append(waypoints[-1])
+            
+            # 3. Final central validation of all segments
+            path_valid = True
+            for i in range(len(dense_wps) - 1):
+                chk = self.engine.check_segment_clearance(
+                    dense_wps[i]["lat"], dense_wps[i]["lon"],
+                    dense_wps[i+1]["lat"], dense_wps[i+1]["lon"],
+                    min_standoff_km=0.0
+                )
+                if not chk["is_clear"]:
+                    path_valid = False
+                    break
+            
+            if not path_valid:
+                res["status"] = "ROUTE_BLOCKED"
+                res["waypoints"] = []
+                res["message"] = "Final route validation failed: Path intersects land or ice shelf."
+            else:
+                res["waypoints"] = dense_wps
         res["route_found"] = (res.get("status") == "SCREENED_COARSE_REGIONAL_CONSTRAINTS" and len(res.get("waypoints", [])) > 0)
         res["label"] = res.get("status_label", "DEMO PLAYBACK ONLY (SCREENED AGAINST COARSE 1:50M CONSTRAINTS)")
         return res
@@ -743,5 +878,15 @@ class AntarcticRouteOptimizer:
             curr_idx = furthest_idx
 
         if is_dict:
-            return [{"lat": p[0], "lon": p[1]} for p in smoothed]
+            # retain risk if possible
+            ret = []
+            for p in smoothed:
+                # Find matching risk from original route_coords
+                r = 0.0
+                for orig in route_coords:
+                    if orig["lat"] == p[0] and orig["lon"] == p[1]:
+                        r = orig.get("risk", 0.0)
+                        break
+                ret.append({"lat": p[0], "lon": p[1], "risk": r})
+            return ret
         return smoothed
