@@ -190,19 +190,6 @@
       background: rgba(0, 20, 35, 0.85); border: 1px solid rgba(56, 189, 248, 0.6);
       padding: 1px 6px; border-radius: 4px; white-space: nowrap; pointer-events: none;
     }
-    
-    .iceberg-tracked .iceberg-3d-icon {
-      filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.7));
-    }
-    .iceberg-tracked .iceberg-label-tag {
-      background: rgba(245, 158, 11, 0.9);
-      border-color: #fcd34d;
-    }
-    .zone-tracked {
-      border: 2px dashed rgba(245, 158, 11, 0.5) !important;
-      background: rgba(245, 158, 11, 0.05);
-    }
-
     .iceberg-threat-active .iceberg-3d-icon {
       filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.9)) !important;
       animation: berg-alert 0.8s infinite alternate;
@@ -928,7 +915,7 @@
       bowStem.position.set(0, 0.02, 0.58);
       bowStem.scale.set(1.4, 0.8, 1.0);
       shipGroup.add(bowStem);
-        shipGroup.scale.set(0.55, 0.55, 0.55);
+      shipGroup.scale.set(0.55, 0.55, 0.55);
 
       // Knife Ice-Blade Stem Plate
       const stemBladeGeo = new THREE.BoxGeometry(0.015, 0.14, 0.22);
@@ -1550,7 +1537,7 @@
       const icebergs = icebergMarkers.map(m => m.bergData);
       
       const req = {
-        ship_position: [shipPos[0], shipPos[1]],
+        ship_position: shipPos,
         ship_heading: currentHeading,
         destination: goalPoint,
         current_route: corridorWaypoints,
@@ -1577,8 +1564,6 @@
            // from the ship's current position and end at the destination.
            corridorWaypoints = data.avoidance_route;
            currentWpIndex = 0; 
-           
-           tacticalThreatId = data.threats[0];
            
            const tEl = document.getElementById('hud-target');
            if (tEl) tEl.style.display = 'block';
@@ -1609,29 +1594,60 @@
            safeSetText('tel-prob', data.reason, '#ef4444');
         }
         
-                  // Iceberg visualization update
-          const threatIds = new Set(data.threats || []);
-          const trackedIds = new Set(data.tracked || []);
-          icebergMarkers.forEach(marker => {
-            const berg = marker.bergData;
-            const zoneElem = document.getElementById(`hazard-zone-${berg.id}`);
-            const iconWrapper = marker.getElement();
-  
-            if (iconWrapper && zoneElem) {
-                iconWrapper.classList.remove('iceberg-threat-active', 'iceberg-tracked');
-                zoneElem.classList.remove('zone-critical', 'zone-tracked');
-                
-                if (threatIds.has(berg.id)) {
-                    iconWrapper.classList.add('iceberg-threat-active');
-                    zoneElem.classList.add('zone-critical');
-                } else if (trackedIds.has(berg.id)) {
-                    iconWrapper.classList.add('iceberg-tracked');
-                    zoneElem.classList.add('zone-tracked');
-                }
-            }
-          });
+        // Iceberg visualization update
+        const threatIds = new Set(data.threats || []);
+        const trackedIds = new Set(data.tracked || []);
+        icebergMarkers.forEach(marker => {
+          const berg = marker.bergData;
+          const zoneElem = document.getElementById(`hazard-zone-${berg.id}`);
+          const iconWrapper = marker.getElement();
+
+          if (iconWrapper && zoneElem) {
+              iconWrapper.classList.remove('iceberg-threat-active', 'iceberg-tracked');
+              zoneElem.classList.remove('zone-critical', 'zone-tracked');
+              
+              if (threatIds.has(berg.id)) {
+                  iconWrapper.classList.add('iceberg-threat-active');
+                  zoneElem.classList.add('zone-critical');
+              } else if (trackedIds.has(berg.id)) {
+                  iconWrapper.classList.add('iceberg-tracked');
+                  zoneElem.classList.add('zone-tracked');
+              }
           }
         });
+      } catch(e) {
+        console.error("Avoidance API error:", e);
+      }
+      tacticalReplanInProgress = false;
+    }
+
+
+    function selectIceberg(berg) {
+      targetCardDismissed = false;
+      selectedContactId = berg.id;
+      const d = calcDist(shipPos, [berg.lat, berg.lon]);
+      const kin = computeCPA(shipPos, 14.0, currentHeading, [berg.lat, berg.lon], berg.vx||0, berg.vy||0);
+
+      const tEl = document.getElementById('hud-target');
+      if (tEl) tEl.style.display = 'block';
+
+      safeSetText('target-header-title', `INSPECTING CONTACT ${berg.id}`);
+      safeSetText('target-id', berg.id);
+      safeSetText('target-type', berg.type || "TABULAR ICEBERG");
+      safeSetText('target-mass', `${(berg.size_sq_km ? berg.size_sq_km * 0.45 : (berg.size||1000) * 0.45).toFixed(0)} Mt`);
+      safeSetText('target-dist', `${d.toFixed(1)} km (${(d/1.852).toFixed(1)} NM)`);
+      safeSetText('cpa-dist', `${kin.cpaNm.toFixed(2)} NM`);
+      safeSetText('cpa-time', `${kin.tcpaMin.toFixed(0)} min`);
+      safeSetText('cpa-threat', `${kin.threat} HAZARD`, kin.threat === "CRITICAL" ? "#ef4444" : "#f59e0b");
+      safeSetText('target-action', 'DIRECT CONTACT INSPECTION', '#38bdf8');
+
+      icebergMarkers.forEach(m => {
+        const el = m.getElement();
+        if (el) {
+          if (m.bergData.id === berg.id) el.classList.add('iceberg-threat-active');
+          else el.classList.remove('iceberg-threat-active');
+        }
+      });
     }
 
     function dismissTargetCard() {
@@ -1916,9 +1932,21 @@
           checkTacticalEnvironment();
         }
 
-        
-            }
-          });
+        // Just update iceberg UI (no local threat calculation)
+        icebergMarkers.forEach(marker => {
+          const berg = marker.bergData;
+          const d = calcDist(shipPos, [berg.lat, berg.lon]);
+          const zoneElem = document.getElementById(`hazard-zone-${berg.id}`);
+          const iconWrapper = marker.getElement();
+
+          if (d < 110) {
+            if (iconWrapper) iconWrapper.classList.add('iceberg-threat-active');
+            if (zoneElem) zoneElem.classList.add('zone-critical');
+          } else {
+            if (iconWrapper) iconWrapper.classList.remove('iceberg-threat-active');
+            if (zoneElem) zoneElem.classList.remove('zone-critical');
+          }
+        });
 
       } catch (err) {
         console.error("Simulation frame error:", err);
