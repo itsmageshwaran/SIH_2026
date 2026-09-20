@@ -1520,7 +1520,101 @@
       });
     }
 
+    
     let targetCardDismissed = false;
+
+    // --- TACTICAL AVOIDANCE STATE MACHINE ---
+    let tacticalState = 'NORMAL_NAVIGATION'; 
+    let tacticalReplanInProgress = false;
+    let originalRouteWaypoints = [];
+    let tacticalThreatId = null;
+
+    async function checkTacticalEnvironment() {
+      if (tacticalReplanInProgress || !corridorWaypoints || corridorWaypoints.length < 2) return;
+      if (isPaused || simSpeedMultiplier === 0) return;
+      
+      const icebergs = icebergMarkers.map(m => m.bergData);
+      
+      const req = {
+        ship_position: [shipPos[0], shipPos[1]],
+        ship_heading: currentHeading,
+        destination: goalPoint,
+        current_route: corridorWaypoints,
+        detected_icebergs: icebergs,
+        detection_radius: 110.0,
+        safety_margin: 10.0
+      };
+
+      tacticalReplanInProgress = true;
+      try {
+        const res = await fetch('/api/route/avoid-iceberg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req)
+        });
+        const data = await res.json();
+        
+        if (data.status === 'avoidance_required') {
+           if (tacticalState === 'NORMAL_NAVIGATION') {
+               originalRouteWaypoints = [...corridorWaypoints];
+               tacticalState = `AVOIDING_${data.avoidance_side.toUpperCase()}`;
+           }
+           // Smoothly transition to new route
+           corridorWaypoints = data.avoidance_route;
+           currentWpIndex = 0; 
+           
+           tacticalThreatId = data.threats[0];
+           
+           const tEl = document.getElementById('hud-target');
+           if (tEl) tEl.style.display = 'block';
+           safeSetText('target-header-title', 'TACTICAL AVOIDANCE ACTIVE');
+           safeSetText('target-id', tacticalThreatId);
+           safeSetText('hud-status', `AVOIDING ${data.avoidance_side.toUpperCase()}`, '#f59e0b');
+           safeSetText('tel-prob', `MIN CLEARANCE: ${data.safe_clearance.toFixed(1)} km`, '#f59e0b');
+           safeSetText('target-action', data.reason, '#10b981');
+           
+           routePolyline.setLatLngs(corridorWaypoints);
+
+        } else if (data.status === 'safe') {
+           if (tacticalState !== 'NORMAL_NAVIGATION') {
+               tacticalState = 'RETURN_TO_ROUTE';
+               corridorWaypoints = originalRouteWaypoints; 
+               
+               // Find closest point on original route to snap currentWpIndex
+               let bestDist = Infinity;
+               let bestIdx = 0;
+               for (let i = 0; i < corridorWaypoints.length; i++) {
+                   const d = calcDist(shipPos, corridorWaypoints[i]);
+                   if (d < bestDist) { bestDist = d; bestIdx = i; }
+               }
+               currentWpIndex = bestIdx;
+               
+               safeSetText('hud-status', 'OPTIMAL MARITIME WATERWAY', '#10b981');
+               safeSetText('tel-prob', 'HAZARD CLEARED', '#10b981');
+               safeSetText('target-action', 'RESUMING ORIGINAL ROUTE', '#10b981');
+               
+               routePolyline.setLatLngs(corridorWaypoints);
+               
+               setTimeout(() => {
+                  if (tacticalState === 'RETURN_TO_ROUTE') {
+                      tacticalState = 'NORMAL_NAVIGATION';
+                      originalRouteWaypoints = [];
+                      tacticalThreatId = null;
+                      const tEl = document.getElementById('hud-target');
+                      if (tEl) tEl.style.display = 'none';
+                  }
+               }, 5000);
+           }
+        } else if (data.status === 'blocked') {
+           safeSetText('hud-status', 'ROUTE BLOCKED - NO SAFE PATH', '#ef4444');
+           safeSetText('tel-prob', data.reason, '#ef4444');
+        }
+      } catch(e) {
+        console.error("Avoidance API error:", e);
+      }
+      tacticalReplanInProgress = false;
+    }
+
 
     function selectIceberg(berg) {
       targetCardDismissed = false;
@@ -1605,64 +1699,15 @@
       const uFwdX = dLonKm / dTotalKm;
       const uFwdY = dLatKm / dTotalKm;
 
-      let latDetourX = 0;
-      let latDetourY = 0;
-      const SAFE_RADIUS_KM = 90.0;
-
-      icebergMarkers.forEach(marker => {
-        const berg = marker.bergData;
-        const bdxKm = (berg.lon - shipPos[1]) * 111.0 * cosLat;
-        const bdyKm = (berg.lat - shipPos[0]) * 111.0;
-        const distBergKm = Math.sqrt(bdxKm * bdxKm + bdyKm * bdyKm);
-
-        if (distBergKm < SAFE_RADIUS_KM && distBergKm > 0.5) {
-          const dotAhead = (bdxKm * uFwdX + bdyKm * uFwdY);
-          if (dotAhead > -15.0) {
-            const cross = (uFwdX * bdyKm - uFwdY * bdxKm);
-            if (berg.evadeSign === undefined) berg.evadeSign = (cross >= 0 ? 1 : -1);
-            if (Math.abs(cross) > 10.0) berg.evadeSign = (cross >= 0 ? 1 : -1);
-
-            let normX = berg.evadeSign > 0 ? uFwdY : -uFwdY;
-            let normY = berg.evadeSign > 0 ? -uFwdX : uFwdX;
-
-            const proximity = (SAFE_RADIUS_KM - distBergKm) / SAFE_RADIUS_KM;
-            let detourMag = Math.pow(proximity, 1.0) * 2.5;
-            if (distBergKm < 50.0) {
-              detourMag += Math.pow((50.0 - distBergKm) / 50.0, 1.5) * 4.0;
-            }
-
-            latDetourX += normX * detourMag;
-            latDetourY += normY * detourMag;
-          }
-        }
-      });
-
-      const MAX_DETOUR_KM = 3.0;
-      const detourMagnitude = Math.sqrt(latDetourX * latDetourX + latDetourY * latDetourY);
-      if (detourMagnitude > MAX_DETOUR_KM) {
-        latDetourX = (latDetourX / detourMagnitude) * MAX_DETOUR_KM;
-        latDetourY = (latDetourY / detourMagnitude) * MAX_DETOUR_KM;
-      }
-
-      const distFromStart = calcDist(shipPos, startPoint);
-      const distFromGoal = calcDist(shipPos, goalPoint);
-      if (distFromStart < 50.0) {
-        const factor = Math.max(0.0, (distFromStart - 10.0) / 40.0);
-        latDetourX *= factor; latDetourY *= factor;
-      } else if (distFromGoal < 50.0) {
-        const factor = Math.max(0.0, (distFromGoal - 10.0) / 40.0);
-        latDetourX *= factor; latDetourY *= factor;
-      }
-
-      const netVx = uFwdX + latDetourX;
-      const netVy = uFwdY + latDetourY;
-      const netLen = Math.sqrt(netVx * netVx + netVy * netVy);
-
+      const BASE_STEP_SPEED_DEG = 0.005;
       const stepKm = (BASE_STEP_SPEED_DEG * simSpeedMultiplier) * 111.0;
-      const actualStepLon = shipPos[1] + ((netVx / netLen) * stepKm) / (111.0 * cosLat);
-      const actualStepLat = shipPos[0] + ((netVy / netLen) * stepKm) / 111.0;
 
-      return [actualStepLat, actualStepLon];
+      const nextPos = [
+        shipPos[0] + ((uFwdY) * stepKm) / 111.0,
+        shipPos[1] + ((uFwdX) * stepKm) / (111.0 * cosLat)
+      ];
+      
+      return nextPos;
     }
 
     function generatePredictedRoute() {
@@ -1876,10 +1921,12 @@
         document.getElementById('tel-co2').innerText = (totalDistCovered * 0.138 * 3.11).toFixed(1) + " t CO₂";
 
         // Collision Hazard & CPA Evaluation
-        let closestDist = Infinity;
-        let closestBerg = null;
-        let threatDetected = false;
+        // Call Tactical State Machine Loop
+        if (frameCount % 10 === 0) {
+          checkTacticalEnvironment();
+        }
 
+        // Just update iceberg UI (no local threat calculation)
         icebergMarkers.forEach(marker => {
           const berg = marker.bergData;
           const d = calcDist(shipPos, [berg.lat, berg.lon]);
@@ -1887,47 +1934,13 @@
           const iconWrapper = marker.getElement();
 
           if (d < 110) {
-            threatDetected = true;
-            if (d < closestDist) {
-              closestDist = d;
-              closestBerg = berg;
-            }
             if (iconWrapper) iconWrapper.classList.add('iceberg-threat-active');
             if (zoneElem) zoneElem.classList.add('zone-critical');
-          } else if (berg.id !== selectedContactId) {
+          } else {
             if (iconWrapper) iconWrapper.classList.remove('iceberg-threat-active');
             if (zoneElem) zoneElem.classList.remove('zone-critical');
           }
         });
-
-        if (threatDetected && closestBerg && !selectedContactId && !targetCardDismissed) {
-          const tEl = document.getElementById('hud-target');
-          if (tEl) tEl.style.display = 'block';
-          safeSetText('target-header-title', 'ICEBERG COLLISION THREAT');
-          safeSetText('target-id', closestBerg.id);
-          safeSetText('target-type', closestBerg.type || "TABULAR ICEBERG");
-          safeSetText('target-mass', `${(closestBerg.size_sq_km ? closestBerg.size_sq_km * 0.45 : (closestBerg.size||1000) * 0.45).toFixed(0)} Mt`);
-          safeSetText('target-dist', closestDist.toFixed(1) + " km (" + (closestDist/1.852).toFixed(1) + " NM)");
-          safeSetText('hud-status', '⚠ DYNAMIC TANGENTIAL EVASION', '#f59e0b');
-          safeSetText('tel-prob', `${verifiedLandClearanceKm.toFixed(1)} km (EVADING HAZARD)`, '#f59e0b');
-          safeSetText('target-action', 'DYNAMIC TANGENTIAL DETOUR', '#10b981');
-
-          const kin = computeCPA(shipPos, 14.0, currentHeading, [closestBerg.lat, closestBerg.lon], closestBerg.vx||0, closestBerg.vy||0);
-          safeSetText('cpa-dist', kin.cpaNm.toFixed(2) + " NM");
-          safeSetText('cpa-time', kin.tcpaMin.toFixed(0) + " min");
-          safeSetText('cpa-threat', kin.threat + " HAZARD", kin.threat === "CRITICAL" ? "#ef4444" : "#f59e0b");
-        } else if (!selectedContactId) {
-          if (!threatDetected) targetCardDismissed = false;
-          const tEl = document.getElementById('hud-target');
-          if (tEl) tEl.style.display = 'none';
-          if (!threatDetected) {
-            safeSetText('hud-status', 'OPTIMAL MARITIME WATERWAY', '#10b981');
-            safeSetText('tel-prob', `${verifiedLandClearanceKm.toFixed(1)} km (VERIFIED CLEAR)`, '#10b981');
-            safeSetText('cpa-dist', '> 25.0 NM');
-            safeSetText('cpa-time', '-- min');
-            safeSetText('cpa-threat', 'CLEAR OF HAZARD', '#10b981');
-          }
-        }
 
       } catch (err) {
         console.error("Simulation frame error:", err);
@@ -2034,7 +2047,7 @@
     // Start Simulation
     (async () => {
       await setupCorridor(activeCorridorKey, currentScenarioSeed);
-      setTimeout(startAnimationLoop, 600);
+      setTimeout(() => { startAnimationLoop(); window.parent.postMessage({ type: 'READY' }, window.location.origin); }, 600);
     })();
   </script>
 </body>

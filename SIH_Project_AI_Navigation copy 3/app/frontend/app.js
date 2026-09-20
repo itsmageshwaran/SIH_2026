@@ -52,6 +52,7 @@ const SHIPPING_LANES = [
   loadRiskHeatmap();
   populateTimelineBergSelect();
   refreshAlertFeed();
+  window.parent.postMessage({ type: 'READY' }, window.location.origin);
 
   // Initialize Weather Tab with default location data
   setTimeout(() => {
@@ -1450,6 +1451,7 @@ function switchTab(tabId) {
   }
   if (tabId === "analytics" && icebergsCatalog.length > 0) {
     refreshAlertFeed();
+  window.parent.postMessage({ type: 'READY' }, window.location.origin);
     const sel = document.getElementById("timeline-berg-select");
     if (sel && sel.options.length <= 1) populateTimelineBergSelect();
   }
