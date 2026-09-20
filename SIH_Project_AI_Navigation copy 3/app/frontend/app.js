@@ -40,7 +40,7 @@ const SHIPPING_LANES = [
 ];
 
 // ─── Init ─────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", async () => {
+(cb => { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", cb); else cb(); })(async () => {
   lucide.createIcons();
   initMap();
   await verifyDataProvenance();

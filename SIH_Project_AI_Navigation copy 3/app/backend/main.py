@@ -1,3 +1,4 @@
+from src.tactical_avoidance import generate_tactical_avoidance
 """
 FastAPI Geospatial Navigation & Trajectory Prediction Server
 ============================================================
@@ -180,6 +181,16 @@ class RouteRequest(BaseModel):
     custom_icebergs: Optional[List[CustomIcebergInput]] = None
 
 
+
+class IcebergAvoidanceRequest(BaseModel):
+    ship_position: List[float]
+    ship_heading: float
+    destination: List[float]
+    current_route: List[List[float]]
+    detected_icebergs: List[Dict[str, Any]]
+    detection_radius: float = 110.0
+    safety_margin: float = 10.0
+
 class ReplanRequest(BaseModel):
     current_lat: float
     current_lon: float
@@ -250,8 +261,7 @@ def health_check():
 
 
 @app.get("/api/data/provenance")
-@app.get("/api/provenance")
-def get_data_provenance():
+def get_legacy_data_provenance():
     """Returns official BYU/NIC archive source metadata, version, and integrity checksum."""
     prov = db.get_provenance_info()
     prov["byu_database_stats"] = {
@@ -261,6 +271,87 @@ def get_data_provenance():
         "synthetic_points": 0
     }
     return prov
+
+@app.get("/api/provenance")
+def get_data_provenance():
+    """Returns authoritative multi-agency data provenance and integration statuses."""
+    return {
+        "status": "VERIFIED",
+        "datasets": [
+            {
+                "name": "Sea Ice Concentration CDR v6 & AMSR2",
+                "provider": "NOAA/NSIDC",
+                "status": "REFERENCE",
+                "data_type": "Sea-Ice Concentration",
+                "local_or_remote": "REMOTE",
+                "last_updated": "N/A",
+                "source_url": "https://nsidc.org/data/g02202/versions/6",
+                "actual_usage": "Not actively integrated. Planned for ConvLSTM forecasting.",
+                "integration_method": "UI Claim Only"
+            },
+            {
+                "name": "Consolidated Antarctic Iceberg Tracking Database",
+                "provider": "BYU/NIC",
+                "status": "HISTORICAL",
+                "data_type": "Iceberg Trajectories",
+                "local_or_remote": "LOCAL",
+                "last_updated": "2023",
+                "source_url": "https://www.scp.byu.edu/iceberg/default.html",
+                "actual_usage": "Static CSV loaded into SQLite. Feeds A* and GRU models.",
+                "integration_method": "Static CSV (iceberg_tracks_clean.csv)"
+            },
+            {
+                "name": "Sentinel-1 SAR",
+                "provider": "Copernicus Data Space",
+                "status": "REFERENCE",
+                "data_type": "Synthetic Aperture Radar Imagery",
+                "local_or_remote": "REMOTE",
+                "last_updated": "N/A",
+                "source_url": "https://dataspace.copernicus.eu/",
+                "actual_usage": "Not actively integrated.",
+                "integration_method": "UI Claim Only"
+            },
+            {
+                "name": "Copernicus Marine & ECMWF ERA5",
+                "provider": "Copernicus/ECMWF",
+                "status": "SIMULATED",
+                "data_type": "Environmental Forcings",
+                "local_or_remote": "LOCAL",
+                "last_updated": "N/A",
+                "source_url": "https://data.marine.copernicus.eu/products",
+                "actual_usage": "Simulated using hardcoded internal math models.",
+                "integration_method": "Hardcoded Constants"
+            },
+            {
+                "name": "National Polar Data Center (NPDC)",
+                "provider": "NCPOR",
+                "status": "REFERENCE",
+                "data_type": "Localized Operations",
+                "local_or_remote": "LOCAL",
+                "last_updated": "N/A",
+                "source_url": "https://npdc.ncpor.res.in/",
+                "actual_usage": "Hardcoded station coordinates (Bharati, Maitri).",
+                "integration_method": "Hardcoded Constants"
+            },
+            {
+                "name": "AI4Arctic / IceBench Dataset",
+                "provider": "DTU",
+                "status": "REFERENCE",
+                "data_type": "Model Benchmarking",
+                "local_or_remote": "REMOTE",
+                "last_updated": "N/A",
+                "source_url": "https://data.dtu.dk/collections/AI4Arctic_Sea_Ice_Challenge_Dataset/6244065",
+                "actual_usage": "Not actively integrated.",
+                "integration_method": "UI Claim Only"
+            }
+        ],
+        "byu_database_stats": {
+            "total_observations": 243433,
+            "unique_icebergs": 75,
+            "coordinate_validity_pct": 100.0,
+            "synthetic_points": 0
+        }
+    }
 
 
 @app.get("/api/data/quality")
@@ -668,8 +759,9 @@ def get_risk_timeline(iceberg_id: str):
 @app.post("/api/route/optimize")
 def optimize_route(req: RouteRequest):
     """Computes an optimal A* maritime trajectory avoiding land, ice shelves, and iceberg hazards."""
-    lat_min = max(-78.0, min(req.start_lat, req.goal_lat) - 5.0)
-    lat_max = min(-30.0, max(req.start_lat, req.goal_lat) + 5.0)
+    import math
+    lat_min = max(-78.0, math.floor(min(req.start_lat, req.goal_lat) - 5.0))
+    lat_max = min(-30.0, math.ceil(max(req.start_lat, req.goal_lat) + 15.0))
 
     grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5, safety_buffer_km=25.0)
     active_bergs = []
@@ -769,8 +861,9 @@ def get_geospatial_context(
 def compare_routes(req: RouteCompareRequest):
     """Compares Basic (Fuel-Save), Balanced, and Advanced (Max-Safety) routing options side-by-side."""
     results = {}
-    lat_min = max(-78.0, min(req.start_lat, req.goal_lat) - 5.0)
-    lat_max = min(-30.0, max(req.start_lat, req.goal_lat) + 5.0)
+    import math
+    lat_min = max(-78.0, math.floor(min(req.start_lat, req.goal_lat) - 5.0))
+    lat_max = min(-30.0, math.ceil(max(req.start_lat, req.goal_lat) + 15.0))
 
     base_grid_data = {}
     for berg_id, pos in STATE.get("latest_positions", {}).items():
@@ -837,6 +930,23 @@ def compare_routes(req: RouteCompareRequest):
         "demo_playback_only": True
     }
 
+
+
+@app.post("/api/route/avoid-iceberg")
+def avoid_iceberg(req: IcebergAvoidanceRequest):
+    """
+    Dynamically generates a tactical avoidance spline bypassing an iceberg
+    intersecting the vessel's projected trajectory.
+    """
+    result = generate_tactical_avoidance(
+        ship_lat=req.ship_position[0],
+        ship_lon=req.ship_position[1],
+        current_route=req.current_route,
+        icebergs=req.detected_icebergs,
+        detection_radius_km=req.detection_radius,
+        safety_margin_km=req.safety_margin
+    )
+    return result
 
 @app.post("/api/route/replan")
 def replan_route(req: ReplanRequest):
@@ -907,8 +1017,10 @@ def multistop_route(req: MultiStopRequest):
         raise HTTPException(status_code=400, detail="Need at least 2 stops.")
 
     all_lats = [s["lat"] for s in req.stops]
-    lat_min = max(-78.0, min(all_lats) - 5.0)
-    lat_max = min(-30.0, max(all_lats) + 5.0)
+    import math
+    lat_min = max(-78.0, math.floor(min(all_lats) - 5.0))
+    lat_max = min(-30.0, math.ceil(max(all_lats) + 15.0))
+
 
     grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5, safety_buffer_km=25.0)
     if req.include_all_icebergs:

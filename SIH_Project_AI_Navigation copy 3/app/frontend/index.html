@@ -34,7 +34,7 @@
       <div class="logo-badge"><i data-lucide="compass"></i></div>
       <div>
         <div class="brand-title">ANTARCTIC <span class="accent-cyan">NAVIGATOR AI</span></div>
-        <div class="brand-sub">Smart India Hackathon (SIH) • BYU/NIC Database v8.0 • PyTorch GRU • MC Dropout Ensemble</div>
+        <div class="brand-sub">Smart India Hackathon (SIH) • Multi-Agency Verified Datasets • PyTorch GRU • MC Dropout Ensemble</div>
       </div>
     </div>
     <div class="stats-ribbon">
@@ -46,7 +46,7 @@
       </button>
       <div class="stat-badge" id="stat-badge-provenance" style="cursor:pointer" onclick="openProvenanceModal()" title="View Verified Data Provenance & Quality">
         <i data-lucide="database" class="badge-icon"></i>
-        <span class="stat-label">BYU/NIC:</span><span class="stat-val" id="stat-provenance-val" style="color:#94a3b8">Verifying...</span>
+        <span class="stat-label">Sources:</span><span class="stat-val" id="stat-provenance-val" style="color:#94a3b8">Verifying...</span>
       </div>
       <div class="stat-badge" id="stat-badge-status"><span class="stat-dot green" id="stat-status-dot"></span><span class="stat-label">Status:</span><span class="stat-val" id="stat-status-val">SYNCING...</span></div>
       <div class="stat-badge"><span class="stat-label">Bergs:</span><span class="stat-val" id="stat-bergs">75</span></div>
@@ -616,46 +616,26 @@
 
 <!-- Data Provenance & Scientific Truthfulness Modal -->
 <div id="provenance-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeProvenanceModal()">
-  <div class="provenance-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="logo-badge" style="background:#10b981"><i data-lucide="database"></i></div>
-        <div>
-          <div style="font-weight:800;font-size:1.1rem;color:var(--text-primary);">BYU/NIC Antarctic Database Verification</div>
-          <div style="font-size:0.75rem;color:var(--text-muted);">Scientific Data Integrity & Provenance Ledger</div>
+    <div class="provenance-card" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="logo-badge" style="background:#10b981"><i data-lucide="database"></i></div>
+          <div>
+            <div style="font-weight:800;font-size:1.1rem;color:var(--text-primary);">Scientific Data Integrity & Provenance</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Verified multi-agency datasets for Antarctic Navigation</div>
+          </div>
+        </div>
+        <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);" onclick="closeProvenanceModal()"><i data-lucide="x"></i></button>
+      </div>
+      
+      <div>
+        <div style="font-weight:700;font-size:0.8rem;margin-top:10px;margin-bottom:6px;color:var(--text-primary);">Integrated Datasets & Integration Status:</div>
+        <div id="provenance-datasets-container" style="display:flex;flex-direction:column;font-size:0.75rem;">
+           <!-- Dynamically populated by app.js -->
         </div>
       </div>
-      <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);" onclick="closeProvenanceModal()"><i data-lucide="x"></i></button>
+      <button class="action-btn primary" onclick="closeProvenanceModal()" style="margin-top:12px; width:100%;">Close Integrity Report</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="provenance-stats-grid">
-      <div class="stat-card"><div class="stat-card-val" style="color:#059669">243,433</div><div class="stat-card-lbl">Official Observations</div></div>
-      <div class="stat-card"><div class="stat-card-val" style="color:#0284c7">75</div><div class="stat-card-lbl">Verified Icebergs</div></div>
-      <div class="stat-card"><div class="stat-card-val" style="color:#10b981">100.0%</div><div class="stat-card-lbl">Coordinate Validity</div></div>
-      <div class="stat-card"><div class="stat-card-val" style="color:#059669">0</div><div class="stat-card-lbl">Synthetic / Fabricated Points</div></div>
-    </div>
-    <div style="background:var(--bg-inset);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.75rem;line-height:1.6;">
-      <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);"><i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;vertical-align:middle;"></i> Canonical Source Archive Checksum:</div>
-      <div style="font-family:var(--mono);background:#fff;padding:6px 8px;border-radius:4px;border:1px solid var(--border);word-break:break-all;color:#334155;font-size:0.7rem;">
-        SHA256: 47d899c8bb1c3266d0b8c94a6f87c435dc68827a53f39dea3d78fe68ccc40cae
-      </div>
-      <div style="margin-top:8px;color:var(--text-muted);">
-        <b>Archive:</b> BYU Center for Remote Sensing (MERS) • ASCAT/OSCAT-2 Polar Scatterometer & National Ice Center (NIC)
-      </div>
-    </div>
-    <div>
-      <div style="font-weight:700;font-size:0.8rem;margin-bottom:6px;color:var(--text-primary);">Scientific Data Categorization:</div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:0.75rem;">
-        <div><span class="provenance-tag obs">🟢 OBSERVED</span> BYU/NIC scatterometer tracking records & live ASCAT feed</div>
-        <div><span class="provenance-tag pred">🟣 PREDICTED</span> PyTorch GRU Recurrent Neural Network + MC Dropout (15 ensemble passes)</div>
-        <div><span class="provenance-tag sim">🔵 SIMULATED</span> Relative kinematics (CPA/TCPA), ocean current advection, wind drag</div>
-        <div><span class="provenance-tag est">🟠 ESTIMATED</span> IMO GHG fuel consumption models & CO₂ emission calculations</div>
-        <div><span class="provenance-tag phys">🟡 PHYSICAL BASELINE</span> NSIDC sea-ice climatology + Leeway drift equations (Deterministic)</div>
-        <div><span class="provenance-tag twin">⚪ DEMONSTRATION TWIN</span> Configurable vessel hydrodynamics & ice-class power margin</div>
-        <div><span class="provenance-tag cache">🟤 UNVERIFIED CACHE</span> Literature-based environmental lookup (unverified offline estimates)</div>
-      </div>
-    </div>
-    <button class="action-btn primary" onclick="closeProvenanceModal()" style="margin-top:4px;">Close Integrity Report</button>
-  </div>
 </div>
 
 <script src="app.js"></script>

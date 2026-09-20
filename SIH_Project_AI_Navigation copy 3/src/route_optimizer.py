@@ -791,7 +791,7 @@ class AntarcticRouteOptimizer:
         risk_weight: float = 5.0
     ) -> Dict[str, Any]:
         lat_min = max(-78.0, min(start_lat, goal_lat) - 5.0)
-        lat_max = min(-30.0, max(start_lat, goal_lat) + 5.0)
+        lat_max = min(-30.0, max(start_lat, goal_lat) + 15.0)
         grid = RiskGrid(lat_min=lat_min, lat_max=lat_max, resolution_deg=0.5)
         router = AStarMaritimeRouter(grid, risk_weight=risk_weight)
         res = router.find_path(
