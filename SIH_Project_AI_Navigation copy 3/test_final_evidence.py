@@ -13,7 +13,7 @@ def get_clearance(ship_lat, ship_lon, icebergs):
             min_c = clearance
     return min_c
 
-def test_autonomous_scenario(context, name, setup_script, timeout_steps=40):
+def run_autonomous_scenario(context, name, setup_script, timeout_steps=40):
     print(f"\n--- SCENARIO: {name} ---")
     page = context.new_page()
     page.goto("http://localhost:8000/radar")

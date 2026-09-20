@@ -941,6 +941,8 @@ def avoid_iceberg(req: IcebergAvoidanceRequest):
     result = generate_tactical_avoidance(
         ship_lat=req.ship_position[0],
         ship_lon=req.ship_position[1],
+        ship_heading=req.ship_heading,
+        destination=req.destination,
         current_route=req.current_route,
         icebergs=req.detected_icebergs,
         detection_radius_km=req.detection_radius,
