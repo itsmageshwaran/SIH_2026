@@ -1,5 +1,53 @@
 import math
+import heapq
 from typing import List, Dict, Any, Tuple
+
+try:
+    from src.geospatial_obstacles import get_obstacle_engine
+except ImportError:
+    get_obstacle_engine = None
+
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+def get_point_at_distance_bearing(lat: float, lon: float, dist_km: float, bearing_deg: float) -> Tuple[float, float]:
+    R = 6371.0
+    lat_r, lon_r = math.radians(lat), math.radians(lon)
+    bearing_r = math.radians(bearing_deg)
+    new_lat = math.asin(math.sin(lat_r) * math.cos(dist_km / R) +
+                        math.cos(lat_r) * math.sin(dist_km / R) * math.cos(bearing_r))
+    new_lon = lon_r + math.atan2(math.sin(bearing_r) * math.sin(dist_km / R) * math.cos(lat_r),
+                                 math.cos(dist_km / R) - math.sin(lat_r) * math.sin(new_lat))
+    return math.degrees(new_lat), math.degrees(new_lon)
+
+def point_to_segment_distance_haversine(lat: float, lon: float, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    avg_lat = math.radians((lat1 + lat2 + lat) / 3.0)
+    cos_lat = math.cos(avg_lat)
+    
+    x = lon * cos_lat * 111.0
+    y = lat * 111.0
+    x1 = lon1 * cos_lat * 111.0
+    y1 = lat1 * 111.0
+    x2 = lon2 * cos_lat * 111.0
+    y2 = lat2 * 111.0
+    
+    l2 = (x2 - x1)**2 + (y2 - y1)**2
+    if l2 == 0: return math.hypot(x - x1, y - y1)
+    
+    t = max(0.0, min(1.0, ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / l2))
+    proj_x = x1 + t * (x2 - x1)
+    proj_y = y1 + t * (y2 - y1)
+    
+    return math.hypot(x - proj_x, y - proj_y)
+
+def segment_intersects_circle(lat1: float, lon1: float, lat2: float, lon2: float, c_lat: float, c_lon: float, radius_km: float) -> bool:
+    d = point_to_segment_distance_haversine(c_lat, c_lon, lat1, lon1, lat2, lon2)
+    return d <= radius_km
 
 def generate_tactical_avoidance(
     ship_lat: float, ship_lon: float,
@@ -9,178 +57,197 @@ def generate_tactical_avoidance(
     safety_margin_km: float = 10.0,
     ship_safety_radius_km: float = 2.0
 ) -> Dict[str, Any]:
-    cos_lat = math.cos(math.radians(ship_lat))
-    def to_km(lat, lon):
-        return (lon - ship_lon) * 111.0 * cos_lat, (lat - ship_lat) * 111.0
-    def to_deg(x, y):
-        return ship_lat + y / 111.0, ship_lon + x / (111.0 * cos_lat)
-
-    route_km = [to_km(p[0], p[1]) for p in current_route]
     
-    def point_to_segment_distance(px, py, ax, ay, bx, by):
-        l2 = (bx - ax)**2 + (by - ay)**2
-        if l2 == 0: return math.hypot(px - ax, py - ay)
-        t = max(0, min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2))
-        proj_x = ax + t * (bx - ax)
-        proj_y = ay + t * (by - ay)
-        return math.hypot(px - proj_x, py - proj_y)
-    
-    threats = []
+    obstacles = []
     for berg in icebergs:
-        bx, by = to_km(berg['lat'], berg['lon'])
-        dist_to_ship = math.hypot(bx, by)
+        b_lat, b_lon = berg['lat'], berg['lon']
+        dist_to_ship = haversine(ship_lat, ship_lon, b_lat, b_lon)
         if dist_to_ship > detection_radius_km:
             continue
             
         sz = berg.get('size_sq_km', 25.0)
         br = math.sqrt(sz / math.pi)
-        eff_radius = br + safety_margin_km + ship_safety_radius_km
         
+        speed_kts = berg.get('speed_knots', 0)
+        drift_km_per_hr = speed_kts * 1.852
+        
+        eff_radius = br + safety_margin_km + ship_safety_radius_km + (drift_km_per_hr * 1.5)
+        
+        obstacles.append({
+            'id': berg.get('id', 'UNKNOWN'),
+            'lat': b_lat,
+            'lon': b_lon,
+            'eff_radius': eff_radius,
+            'dist_to_ship': dist_to_ship
+        })
+
+    if len(current_route) < 2:
+        return {"status": "safe", "route": current_route, "reason": "Route too short", "safe_clearance": -1}
+        
+    min_dist = float('inf')
+    closest_wp_idx = 0
+    for i, wp in enumerate(current_route):
+        d = haversine(ship_lat, ship_lon, wp[0], wp[1])
+        if d < min_dist:
+            min_dist = d
+            closest_wp_idx = i
+            
+    if closest_wp_idx < len(current_route) - 1:
+        d_to_next = haversine(ship_lat, ship_lon, current_route[closest_wp_idx+1][0], current_route[closest_wp_idx+1][1])
+        if d_to_next < min_dist:
+            closest_wp_idx += 1
+            
+    active_path = [[ship_lat, ship_lon]] + current_route[closest_wp_idx:]
+    
+    red_threats = []
+    for obs in obstacles:
         is_threat = False
-        min_clearance = float('inf')
-        threat_seg_idx = -1
-        
-        for i in range(len(route_km) - 1):
-            ax, ay = route_km[i]
-            bx_seg, by_seg = route_km[i+1]
-            
-            d_ship_a = math.hypot(ax, ay)
-            if d_ship_a > detection_radius_km + 50.0:
-                continue
-                
-            d = point_to_segment_distance(bx, by, ax, ay, bx_seg, by_seg)
-            if d < eff_radius:
+        min_clear = float('inf')
+        for i in range(len(active_path) - 1):
+            p1 = active_path[i]
+            p2 = active_path[i+1]
+            d = point_to_segment_distance_haversine(obs['lat'], obs['lon'], p1[0], p1[1], p2[0], p2[1])
+            if d <= obs['eff_radius']:
                 is_threat = True
-                if d < min_clearance:
-                    min_clearance = d
-                    threat_seg_idx = i
-                
+            min_clear = min(min_clear, d)
+        
         if is_threat:
-            threats.append({
-                "iceberg": berg,
-                "bx": bx, "by": by,
-                "eff_radius": eff_radius,
-                "seg_idx": threat_seg_idx,
-                "clearance": min_clearance,
-                "dist_to_ship": dist_to_ship
-            })
+            obs['clearance'] = min_clear
+            red_threats.append(obs)
             
-    if not threats:
+    if not red_threats:
         return {"status": "safe", "route": current_route, "reason": "No path intersection", "safe_clearance": -1}
         
-    threats.sort(key=lambda t: t['dist_to_ship'])
-    primary = threats[0]
-
-    def is_point_safe(pt_x, pt_y):
-        for berg in icebergs:
-            bx_b, by_b = to_km(berg['lat'], berg['lon'])
-            sz = berg.get('size_sq_km', 25.0)
-            br = math.sqrt(sz / math.pi)
-            eff_radius = br + safety_margin_km + ship_safety_radius_km
-            if math.hypot(pt_x - bx_b, pt_y - by_b) <= eff_radius:
+    engine = None
+    if get_obstacle_engine:
+        engine = get_obstacle_engine()
+        
+    def is_segment_safe(lat1, lon1, lat2, lon2):
+        for obs in obstacles:
+            if segment_intersects_circle(lat1, lon1, lat2, lon2, obs['lat'], obs['lon'], obs['eff_radius']):
+                return False
+        if engine:
+            hit, _ = engine.check_segment_collision((lat1, lon1), (lat2, lon2))
+            if hit:
                 return False
         return True
 
-    # Search outward for safe waypoints
-    first_safe_idx_before = primary['seg_idx']
-    while first_safe_idx_before > 0:
-        if is_point_safe(*route_km[first_safe_idx_before]):
-            # Also check if it's sufficiently far from the primary
-            if math.hypot(route_km[first_safe_idx_before][0] - primary['bx'], 
-                          route_km[first_safe_idx_before][1] - primary['by']) > primary['eff_radius'] * 2.0:
+    nodes = [(ship_lat, ship_lon)]
+    
+    end_nodes = []
+    # An end node is ONLY valid if the ENTIRE route segment AFTER it is safe.
+    for i in range(closest_wp_idx, len(current_route)):
+        wp = current_route[i]
+        
+        # Check if wp itself is safe
+        wp_safe = True
+        for obs in obstacles:
+            if haversine(wp[0], wp[1], obs['lat'], obs['lon']) <= obs['eff_radius']:
+                wp_safe = False
                 break
-        first_safe_idx_before -= 1
-
-    first_safe_idx_after = primary['seg_idx'] + 1
-    while first_safe_idx_after < len(route_km) - 1:
-        if is_point_safe(*route_km[first_safe_idx_after]):
-            if math.hypot(route_km[first_safe_idx_after][0] - primary['bx'], 
-                          route_km[first_safe_idx_after][1] - primary['by']) > primary['eff_radius'] * 2.0:
-                break
-        first_safe_idx_after += 1
-
-    if first_safe_idx_after <= first_safe_idx_before:
-        first_safe_idx_after = min(len(route_km)-1, first_safe_idx_before + 1)
         
-    ax, ay = route_km[first_safe_idx_before]
-    bx_seg, by_seg = route_km[first_safe_idx_after]
+        # Check if the rest of the route from this wp is safe
+        rest_safe = True
+        if wp_safe:
+            rest_path = [wp] + current_route[i+1:]
+            for k in range(len(rest_path) - 1):
+                p1 = rest_path[k]
+                p2 = rest_path[k+1]
+                for obs in obstacles:
+                    if segment_intersects_circle(p1[0], p1[1], p2[0], p2[1], obs['lat'], obs['lon'], obs['eff_radius']):
+                        rest_safe = False
+                        break
+                if not rest_safe: break
+                
+        if wp_safe and rest_safe:
+            nodes.append(tuple(wp))
+            end_nodes.append(tuple(wp))
+            
+    if not end_nodes:
+        # If no valid end nodes, at least add the destination, even if risky, so A* has a target.
+        dest_wp = current_route[-1]
+        nodes.append(tuple(dest_wp))
+        end_nodes.append(tuple(dest_wp))
+        
+    for obs in obstacles:
+        pad_radius = obs['eff_radius'] * 1.25 # increased padding for maneuverability
+        for angle in range(0, 360, 45):
+            pt = get_point_at_distance_bearing(obs['lat'], obs['lon'], pad_radius, angle)
+            pt_safe = True
+            for obs2 in obstacles:
+                if haversine(pt[0], pt[1], obs2['lat'], obs2['lon']) <= obs2['eff_radius']:
+                    pt_safe = False
+                    break
+            if pt_safe and engine:
+                if engine.is_point_in_obstacle(pt[0], pt[1])[0]:
+                    pt_safe = False
+            if pt_safe:
+                nodes.append(pt)
+                
+    adj = {i: [] for i in range(len(nodes))}
+    for i in range(len(nodes)):
+        for j in range(i + 1, len(nodes)):
+            n1 = nodes[i]
+            n2 = nodes[j]
+            dist = haversine(n1[0], n1[1], n2[0], n2[1])
+            if dist > 250.0: # relaxed max segment
+                continue
+            if is_segment_safe(n1[0], n1[1], n2[0], n2[1]):
+                adj[i].append((j, dist))
+                adj[j].append((i, dist))
+                
+    dest = end_nodes[-1]
+    pq = [(0 + haversine(nodes[0][0], nodes[0][1], dest[0], dest[1]), 0, 0, [0])]
+    visited = {}
     
-    dx = bx_seg - ax
-    dy = by_seg - ay
-    l = math.hypot(dx, dy)
+    best_path = None
+    best_end_node_idx = -1
     
-    if l < 0.1:
-        return {"status": "blocked", "route": current_route, "reason": "Too close to resolve"}
+    while pq:
+        f, g, u, path = heapq.heappop(pq)
+        if u in visited and visited[u] <= g:
+            continue
+        visited[u] = g
         
-    nx, ny = dx/l, dy/l
-    px, py = -ny, nx
-    
-    def validate_curve(curve_pts: List[Tuple[float, float]], ax, ay, bx_seg, by_seg) -> bool:
-        pts = [(ax, ay)] + curve_pts + [(bx_seg, by_seg)]
-        for berg in icebergs:
-            bx_b, by_b = to_km(berg['lat'], berg['lon'])
-            sz = berg.get('size_sq_km', 25.0)
-            br = math.sqrt(sz / math.pi)
-            eff_radius = br + safety_margin_km + ship_safety_radius_km
-            for i in range(len(pts) - 1):
-                px1, py1 = pts[i]
-                px2, py2 = pts[i+1]
-                dist = point_to_segment_distance(bx_b, by_b, px1, py1, px2, py2)
-                if dist <= eff_radius:
-                    return False
-        return True
-
-    # Iteratively expand the curve outwards until safe
-    base_push = primary['eff_radius'] * 1.5
-    for push_multiplier in [1.0, 1.5, 2.0, 2.5, 3.0, 4.0]:
-        required_push = base_push * push_multiplier
-        
-        def generate_curve(side_px, side_py) -> List[Tuple[float, float]]:
-            steps = 8
-            curve = []
-            for i in range(1, steps):
-                frac = i / steps
-                base_x = ax + frac * dx
-                base_y = ay + frac * dy
-                offset = math.sin(frac * math.pi) * required_push
-                curve_x = base_x + side_px * offset
-                curve_y = base_y + side_py * offset
-                curve.append((curve_x, curve_y))
-            return curve
-
-        curve_left = generate_curve(px, py)
-        c1_safe = validate_curve(curve_left, ax, ay, bx_seg, by_seg)
-        
-        curve_right = generate_curve(-px, -py)
-        c2_safe = validate_curve(curve_right, ax, ay, bx_seg, by_seg)
-        
-        if c1_safe and not c2_safe:
-            chosen_curve = curve_left
-            side = "left"
+        if nodes[u] in end_nodes and u != 0:
+            best_path = path
+            best_end_node_idx = u
             break
-        elif c2_safe and not c1_safe:
-            chosen_curve = curve_right
-            side = "right"
-            break
-        elif c1_safe and c2_safe:
-            chosen_curve = curve_left 
-            side = "left"
-            break
-    else:
-        return {"status": "blocked", "route": current_route, "reason": "No safe path around iceberg"}
+            
+        for v, weight in adj[u]:
+            new_g = g + weight
+            if v not in visited or new_g < visited[v]:
+                h = haversine(nodes[v][0], nodes[v][1], dest[0], dest[1])
+                if nodes[v] in end_nodes:
+                    h *= 0.1 # Heavily prefer reconnecting to the route as soon as safe
+                heapq.heappush(pq, (new_g + h, new_g, v, path + [v]))
+                
+    if not best_path:
+        return {"status": "blocked", "route": current_route, "reason": "No safe path around active hazards"}
         
-    new_route_km = route_km[:first_safe_idx_before+1]
-    new_route_km.extend(chosen_curve)
-    new_route_km.extend(route_km[first_safe_idx_after:])
+    avoidance_pts = [nodes[i] for i in best_path]
+    reconnect_wp = nodes[best_end_node_idx]
     
-    new_route_deg = [list(to_deg(x, y)) for x, y in new_route_km]
+    reconnect_idx = -1
+    for i in range(closest_wp_idx, len(current_route)):
+        if tuple(current_route[i]) == reconnect_wp:
+            reconnect_idx = i
+            break
+            
+    if reconnect_idx == -1:
+        reconnect_idx = len(current_route) - 1
+        
+    final_route = [list(pt) for pt in avoidance_pts] + current_route[reconnect_idx+1:]
+    
+    red_ids = [t['id'] for t in red_threats]
+    min_clear = min(t['clearance'] for t in red_threats)
     
     return {
         "status": "avoidance_required",
-        "threats": [t['iceberg']['id'] for t in threats],
-        "avoidance_side": side,
+        "threats": red_ids,
+        "avoidance_side": "dynamic",
         "original_route": current_route,
-        "avoidance_route": new_route_deg,
-        "safe_clearance": primary['eff_radius'],
-        "reason": f"Projected intersection with {primary['iceberg']['id']}"
+        "avoidance_route": final_route,
+        "safe_clearance": min_clear,
+        "reason": f"Projected intersection with {', '.join(red_ids)}"
     }
