@@ -38,9 +38,9 @@
       </div>
     </div>
     <div class="stats-ribbon">
-      <a href="/dashboard" class="sih-demo-btn" style="text-decoration:none; background:rgba(63,208,224,0.15); color:#3fd0e0; border:1px solid rgba(63,208,224,0.4);"><i data-lucide="layout-dashboard"></i> MISSION CONTROL</a>
-      <a href="/radar" class="sih-demo-btn" style="text-decoration:none; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4);"><i data-lucide="crosshair"></i> 3D RADAR</a>
-      <a href="/" class="sih-demo-btn" style="text-decoration:none; background:rgba(255,255,255,0.08); color:#e2e8f0; border:1px solid rgba(255,255,255,0.2);"><i data-lucide="home"></i> HOME</a>
+      
+      
+      
       <button id="btn-sih-demo" class="sih-demo-btn" onclick="toggleSIHDemo()">
         <i data-lucide="play"></i> ▶ START SIH DEMO
       </button>
@@ -67,6 +67,7 @@
     <!-- ═══ LEFT SIDEBAR (6 TABS) ═══ -->
     <aside id="sidebar-controls">
       <div class="panel-tabs">
+        <a href="/" class="tab-btn" style="text-decoration:none; color:var(--text-muted);"><i data-lucide="arrow-left"></i><span>Back</span></a>
         <button id="tab-btn-tracking" class="tab-btn active" onclick="switchTab('tracking')"><i data-lucide="radar"></i><span>Track</span></button>
         <button id="tab-btn-routing" class="tab-btn" onclick="switchTab('routing')"><i data-lucide="route"></i><span>Route</span></button>
         <button id="tab-btn-weather" class="tab-btn" onclick="switchTab('weather')"><i data-lucide="cloud"></i><span>Weather</span></button>

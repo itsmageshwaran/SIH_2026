@@ -444,12 +444,19 @@ class AStarMaritimeRouter:
         # Check inland station targeting
         is_maitri_inland_start = (abs(start_lat - (-70.7658)) < 0.05 and abs(start_lon - 11.7358) < 0.05)
         is_maitri_inland_goal = (abs(goal_lat - (-70.7658)) < 0.05 and abs(goal_lon - 11.7358) < 0.05)
-        if (is_maitri_inland_start or is_maitri_inland_goal) and not operator_opt_in:
-            return self._blocked_response(
-                "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
-                "Maitri Base (-70.7658\u00b0 S, 11.7358\u00b0 E) is an inland facility in Schirmacher Oasis with no maritime access. Select 'Princess Astrid Staging Point (Illustrative)' with operator opt-in confirmation or supply custom surveyed fast-ice coordinates.",
-                "Safety cannot be determined. Maitri Base is inland and cannot be reached by maritime vessel."
-            )
+        if (is_maitri_inland_start or is_maitri_inland_goal):
+            if not operator_opt_in:
+                return self._blocked_response(
+                    "SAFETY_UNVERIFIED_DATA_INSUFFICIENT",
+                    "Maitri Base (-70.7658\u00b0 S, 11.7358\u00b0 E) is an inland facility in Schirmacher Oasis with no maritime access. Select 'Princess Astrid Staging Point (Illustrative)' with operator opt-in confirmation or supply custom surveyed fast-ice coordinates.",
+                    "Safety cannot be determined. Maitri Base is inland and cannot be reached by maritime vessel."
+                )
+            else:
+                # Override to Princess Astrid
+                if is_maitri_inland_start:
+                    start_lat, start_lon = -69.8500, 11.9000
+                if is_maitri_inland_goal:
+                    goal_lat, goal_lon = -69.8500, 11.9000
 
         # Check if endpoints are on land or inside iceberg hazard
         if is_land_or_shelf(start_lat, start_lon):
@@ -683,8 +690,23 @@ class AStarMaritimeRouter:
                 if neighbor in closed_set:
                     continue
 
+
+                # Weather Risk Calculation (Severe polar cyclones)
+                weather_risk = 0.0
+                storm1_dist = haversine_km(n_lat, n_lon, -62.0, -45.0)
+                if storm1_dist < 800.0:
+                    weather_risk = max(0.0, 1.0 - (storm1_dist / 800.0))
+                
+                storm2_dist = haversine_km(n_lat, n_lon, -65.0, 100.0)
+                if storm2_dist < 600.0:
+                    weather_risk = max(weather_risk, 1.0 - (storm2_dist / 600.0))
+                
                 risk = self.risk_grid.get_risk_at(n_lat, n_lon)
-                edge_cost = step_dist * (1.0 + self.fuel_weight * 0.05 + self.risk_weight * (risk**2))
+                # Combine physical iceberg risk and weather risk
+                combined_risk = max(risk, weather_risk * 0.8) # Weather caps at 0.8 so it doesn't block entirely like an iceberg
+                
+                edge_cost = step_dist * (1.0 + self.fuel_weight * 0.05 + self.risk_weight * (combined_risk**2))
+    
                 tentative_g = current_g + edge_cost
 
                 if neighbor not in g_score or tentative_g < g_score[neighbor]:

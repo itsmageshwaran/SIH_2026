@@ -198,6 +198,7 @@ class ReplanRequest(BaseModel):
     destination_lon: float
     encroaching_iceberg_id: str
     drift_offset_km: float = 30.0
+    operator_opt_in: bool = True
 
 
 class RouteCompareRequest(BaseModel):
@@ -968,7 +969,7 @@ def replan_route(req: ReplanRequest):
     )
 
     router = AStarMaritimeRouter(grid, risk_weight=8.0, hard_risk_cutoff=0.75)
-    new_route_result = router.find_path(req.current_lat, req.current_lon, req.destination_lat, req.destination_lon)
+    new_route_result = router.find_path(req.current_lat, req.current_lon, req.destination_lat, req.destination_lon, operator_opt_in=req.operator_opt_in)
 
     # Initial naive distance
     old_direct_km = round(haversine(req.current_lat, req.current_lon, req.destination_lat, req.destination_lon), 1)
