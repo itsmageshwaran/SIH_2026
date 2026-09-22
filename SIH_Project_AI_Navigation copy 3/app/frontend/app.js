@@ -129,7 +129,7 @@ function initMap() {
       
       document.getElementById("env-regime").innerText = data.current_regime;
 
-      const iceRes = await fetch(`/api/sea-ice/forecast?days=1`); // Uses requested location if passedWait, /api/sea-ice/forecast expects ?lat=X&lon=Y if supportedLet's check. 
+      const iceRes = await fetch(`/api/sea-ice/forecast?days=1`); // Uses requested location if passed? Wait, /api/sea-ice/forecast expects ?lat=X&lon=Y if supported? Let's check. 
       // Actually, passing ?lat=${e.latlng.lat}&lon=${e.latlng.lng} will get the ice for that point.
       const iceRes2 = await fetch(`/api/sea-ice/forecast?lat=${e.latlng.lat}&lon=${e.latlng.lng}&days=1`);
       if (iceRes2.ok) {
@@ -239,7 +239,6 @@ async function loadRiskHeatmap() {
 }
 
 // ─── Wind Arrows (Live Open-Meteo + Verified Reanalysis Fallback) ─────────
-
 async function loadWindArrows() {
   windLayer.clearLayers();
   
@@ -260,9 +259,7 @@ async function loadWindArrows() {
     radius: 600000, // 600km
     weight: 1
   }).addTo(windLayer).bindPopup("Severe Polar Cyclone<br>Wind: 55+ knots");
-
   const gridPoints = [];
-
   for (let lat = -55; lat >= -70; lat -= 5) {
     for (let lon = -150; lon <= 150; lon += 30) {
       gridPoints.push({lat,lon});
@@ -741,9 +738,9 @@ function getVesselTelemetryPopupHtml(pos) {
   const totalLegs = pos?.totalLegs || (activeVoyageWaypoints.length - 1);
   const remDist = Math.max(0, Math.round(activeVoyageTotalDistKm - voyageCurrentDistKm));
   const statusStr = voyageCurrentDistKm >= activeVoyageTotalDistKm
-    '<span style="color:#059669;font-weight:700;">✅ Arrived at Destination</span>'
+    ? '<span style="color:#059669;font-weight:700;">✅ Arrived at Destination</span>'
     : voyageIsPlaying
-      '<span style="color:#0284c7;font-weight:700;">🚢 Cruising @ 14.0 kts</span>'
+      ? '<span style="color:#0284c7;font-weight:700;">🚢 Cruising @ 14.0 kts</span>'
       : '<span style="color:#d97706;font-weight:700;">⏸ Playback Paused</span>';
 
   return `
@@ -958,7 +955,7 @@ function drawRoute(waypoints, layer) {
   lls.forEach((ll, i) => {
     if (i > 0) {
       const risk = waypoints[i].risk;
-      const col  = risk < 0.1 "#0a2540" : risk < 0.4 "#0c3460" : "#7f1d1d";
+      const col  = risk < 0.1 ? "#0a2540" : risk < 0.4 ? "#0c3460" : "#7f1d1d";
       L.polyline([lls[i-1], ll], {color:col, weight:5, opacity:0.92, lineJoin:"round"}).addTo(layer);
     }
   });
@@ -1041,9 +1038,9 @@ function showRouteTelemetry(data, startName, goalName) {
     const resEl = document.getElementById("twin-res");
     const spdEl = document.getElementById("twin-spd");
     const pwrEl = document.getElementById("twin-pwr");
-    const iceRes = twin.resistance_breakdown_kn?.ice_kn ?twin.resistance_breakdown_kn?.total_resistance_kn ?182.4;
-    const effSpd = twin.speed_knots ?14.0;
-    const pwrMargin = twin.powering?.power_margin_pct ?(100 - (twin.powering?.engine_load_pct || 18.8));
+    const iceRes = twin.resistance_breakdown_kn?.ice_kn ?? twin.resistance_breakdown_kn?.total_resistance_kn ?? 182.4;
+    const effSpd = twin.speed_knots ?? 14.0;
+    const pwrMargin = twin.powering?.power_margin_pct ?? (100 - (twin.powering?.engine_load_pct || 18.8));
     if (resEl) resEl.innerText = `${iceRes.toFixed(1)} kN`;
     if (spdEl) spdEl.innerText = `${effSpd.toFixed(1)} kts`;
     if (pwrEl) pwrEl.innerText = `${pwrMargin.toFixed(1)}%`;
@@ -1058,7 +1055,7 @@ async function runMultiStopRoute() {
   if (rawStops.length < 2) { alert("Need at least 2 stops."); return; }
   const stops = rawStops.map(name => {
     const info = stationsCatalog[name];
-    return info {name, lat:info.lat, lon:info.lon} : null;
+    return info ? {name, lat:info.lat, lon:info.lon} : null;
   }).filter(Boolean);
   if (stops.length < 2) { alert("Could not resolve station coordinates."); return; }
 
@@ -1105,12 +1102,12 @@ async function simulateDynamicReplan() {
     const data = await res.json();
     L.circle([midLat-0.4, midLon+0.5], {radius:35000, color:"#7f1d1d", weight:2,
       fillColor:"#7f1d1d", fillOpacity:0.22}).bindPopup("<b>⚠️ Encroaching Iceberg</b>").addTo(routeLayer);
-      if (data.new_route && (data.new_route.status === "ROUTE_BLOCKED" || !data.new_route.waypoints.length)) {
+    if (data.new_route && (data.new_route.status === "ROUTE_BLOCKED" || !data.new_route.waypoints.length)) {
         document.getElementById("replan-alert-box").classList.remove("hidden");
-        document.getElementById("replan-alert-msg").innerHTML = `<b>? REPLAN FAILED:</b> ${data.new_route.message || 'No safe detour found.'}`;
+        document.getElementById("replan-alert-msg").innerHTML = `<b>⚠️ REPLAN FAILED:</b> ${data.new_route.message || 'No safe detour found.'}`;
         if (routeCruiseTimer) clearInterval(routeCruiseTimer);
         const badge = document.getElementById("voyage-status-badge");
-        if (badge) { badge.className = "voyage-chip halted"; badge.innerText = "? PROPULSION HALTED"; }
+        if (badge) { badge.className = "voyage-chip halted"; badge.innerText = "⚠️ PROPULSION HALTED"; }
       } else if (data.replanning_needed && data.new_route?.waypoints) {
       document.getElementById("replan-alert-box").classList.remove("hidden");
       document.getElementById("replan-alert-msg").innerText = "Danger! Berg within 25 km — AI computed collision-free detour.";
@@ -1188,7 +1185,7 @@ async function runFuelComparison() {
             <i data-lucide="alert-octagon" style="width: 16px; height: 16px;"></i> ROUTE NOT NAVIGABLE BY MARITIME VESSEL
           </div>
           <div>${firstMsg}</div>
-          ${goalName.includes("Maitri") '<div style="margin-top: 8px; color: #38bdf8;">💡 <b>Solution:</b> Maitri Base is situated on inland rock in Schirmacher Oasis (~100 km from sea). Select <i>"Princess Astrid Staging Point (Maitri)"</i> as destination or check <i>"Operator Opt-in"</i> below.</div>' : ''}
+          ${goalName.includes("Maitri") ? '<div style="margin-top: 8px; color: #38bdf8;">💡 <b>Solution:</b> Maitri Base is situated on inland rock in Schirmacher Oasis (~100 km from sea). Select <i>"Princess Astrid Staging Point (Maitri)"</i> as destination or check <i>"Operator Opt-in"</i> below.</div>' : ''}
         </div>
       `;
       lucide.createIcons();
@@ -1211,7 +1208,7 @@ async function runFuelComparison() {
       const m = data.modes[modeKey];
       if (!m || (m.status !== "SCREENED_COARSE_REGIONAL_CONSTRAINTS" && m.status !== "success") || m.fuel_cost_usd === undefined) return;
       const fuelPct = Math.round(((m.fuel_consumption_tonnes || 0) / maxFuel) * 100);
-      const riskLabel = (m.average_risk_score || 0) < 0.05 "✅ Safe" : (m.average_risk_score || 0) < 0.2 "⚠️ Caution" : "🔴 High";
+      const riskLabel = (m.average_risk_score || 0) < 0.05 ? "✅ Safe" : (m.average_risk_score || 0) < 0.2 ? "⚠️ Caution" : "🔴 High";
       const valClass  = idx===0?"green":idx===1?"blue":"amber";
 
       panel.innerHTML += `<div class="fuel-mode-card">
@@ -1274,7 +1271,7 @@ async function runIndiaMissionPlan() {
   const stops = [{name:port,lat:portInfo.lat,lon:portInfo.lon}];
   // If via both, add the other station too
   if (viaBoth) {
-    const other = station === "Maitri (India)" "Bharati (India)" : "Maitri (India)";
+    const other = station === "Maitri (India)" ? "Bharati (India)" : "Maitri (India)";
     const otherInfo = stationsCatalog[other];
     stops.push({name:station,lat:s1Info.lat,lon:s1Info.lon});
     if (otherInfo) stops.push({name:other,lat:otherInfo.lat,lon:otherInfo.lon});
@@ -1288,7 +1285,7 @@ async function runIndiaMissionPlan() {
   btn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> Planning Mission…`;
   lucide.createIcons();
 
-  const optIn = document.getElementById("india-operator-optin")?.checked ?true;
+  const optIn = document.getElementById("india-operator-optin")?.checked ?? true;
 
   try {
     const res = await fetch("/api/route/multistop", {
@@ -1391,7 +1388,7 @@ async function refreshAlertFeed() {
       if (dist < 500) {
         alerts.push({berg:berg.iceberg_id, lane:lane.name, dist:Math.round(dist),
           lat:berg.latest_lat, lon:berg.latest_lon,
-          level: dist < 100 "danger" : "warn"});
+          level: dist < 100 ? "danger" : "warn"});
       }
     });
   });
@@ -1440,7 +1437,7 @@ async function loadRiskTimeline(bergId) {
     const colors = ["#0a2540","#0c3460","#1e3a5f","#2d4a7a"];
     const datasets = laneNames.map((ln, i) => ({
       label: ln,
-      data: tl.map(d => d.lane_risks.find(l=>l.lane===ln)?.risk_score ?0),
+      data: tl.map(d => d.lane_risks.find(l=>l.lane===ln)?.risk_score ?? 0),
       borderColor: colors[i], backgroundColor: colors[i]+"22",
       borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3
     }));
@@ -1473,16 +1470,17 @@ function switchTab(tabId) {
   document.getElementById(`tab-btn-${tabId}`)?.classList.add("active");
   document.getElementById(`tab-${tabId}`)?.classList.add("active");
   
-    if (tabId === "weather") {
-        if (!map.hasLayer(windLayer)) map.addLayer(windLayer);
-        // Dim base map slightly for weather view? Or change tiles?
-        document.querySelector('.leaflet-tile-pane').style.filter = 'brightness(0.6) contrast(1.2)';
-    } else {
-        if (map.hasLayer(windLayer)) map.removeLayer(windLayer);
-        document.querySelector('.leaflet-tile-pane').style.filter = 'none';
-    }
-    
-    if (tabId === "benchmarks") {
+  if (tabId === "weather") {
+    if (!map.hasLayer(windLayer)) map.addLayer(windLayer);
+    const tilePane = document.querySelector('.leaflet-tile-pane');
+    if (tilePane) tilePane.style.filter = 'brightness(0.6) contrast(1.2)';
+  } else {
+    if (map.hasLayer(windLayer)) map.removeLayer(windLayer);
+    const tilePane = document.querySelector('.leaflet-tile-pane');
+    if (tilePane) tilePane.style.filter = 'none';
+  }
+  
+  if (tabId === "benchmarks") {
     const img = document.getElementById("eval-plot-img");
     if (img) img.src = `/artifacts/trajectory_evaluation.png?t=${Date.now()}`;
   }
@@ -1499,31 +1497,31 @@ function resetPolarView() { map.flyTo([-60,0],3,{duration:1}); }
 
 function toggleHeatmap() {
   isHeatmapVisible = !isHeatmapVisible;
-  isHeatmapVisible map.addLayer(heatmapLayer) : map.removeLayer(heatmapLayer);
+  isHeatmapVisible ? map.addLayer(heatmapLayer) : map.removeLayer(heatmapLayer);
   document.getElementById("btn-toggle-heat").classList.toggle("active", isHeatmapVisible);
 }
 
 function toggleWindLayer() {
   isWindVisible = !isWindVisible;
-  isWindVisible map.addLayer(windLayer) : map.removeLayer(windLayer);
+  isWindVisible ? map.addLayer(windLayer) : map.removeLayer(windLayer);
   document.getElementById("btn-toggle-wind").classList.toggle("active", isWindVisible);
 }
 
 function toggleShippingLanes() {
   isLanesVisible = !isLanesVisible;
-  isLanesVisible map.addLayer(shippingLanesLayer) : map.removeLayer(shippingLanesLayer);
+  isLanesVisible ? map.addLayer(shippingLanesLayer) : map.removeLayer(shippingLanesLayer);
   document.getElementById("btn-toggle-lanes").classList.toggle("active", isLanesVisible);
 }
 
 function toggleVesselsLayer() {
   isVesselsVisible = !isVesselsVisible;
-  isVesselsVisible map.addLayer(vesselsLayer) : map.removeLayer(vesselsLayer);
+  isVesselsVisible ? map.addLayer(vesselsLayer) : map.removeLayer(vesselsLayer);
   document.getElementById("btn-toggle-vessels").classList.toggle("active", isVesselsVisible);
 }
 
 function toggleStationsLayer() {
   isStationsVisible = !isStationsVisible;
-  isStationsVisible map.addLayer(stationsLayer) : map.removeLayer(stationsLayer);
+  isStationsVisible ? map.addLayer(stationsLayer) : map.removeLayer(stationsLayer);
   document.getElementById("btn-toggle-stations").classList.toggle("active", isStationsVisible);
 }
 
@@ -1550,7 +1548,7 @@ async function toggleSeaIceLayer() {
       const data = await res.json();
       (data.regional_forecasts || []).forEach(reg => {
         const conc = reg.forecast_concentration;
-        const col = conc > 0.6 "#0284c7" : conc > 0.3 "#38bdf8" : "#94a3b8";
+        const col = conc > 0.6 ? "#0284c7" : conc > 0.3 ? "#38bdf8" : "#94a3b8";
         const op = Math.max(0.18, conc * 0.45);
         const circle = L.circle([reg.center_lat, reg.center_lon], {
           radius: 380000,
@@ -1891,7 +1889,7 @@ function toggleSIHPause() {
   const pauseBtn = document.getElementById("btn-sih-pause");
   if (pauseBtn) {
     pauseBtn.innerHTML = sihDemoPaused
-      `<i data-lucide="play"></i> Resume`
+      ? `<i data-lucide="play"></i> Resume`
       : `<i data-lucide="pause"></i> Pause`;
     lucide.createIcons();
   }
@@ -2001,3 +1999,34 @@ window.addEventListener('message', (event) => {
 
 
 
+
+// Cross-window communication with React parent
+window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) return;
+  const data = event.data;
+  if (!data || !data.type) return;
+
+  if (data.type === 'SET_SCENARIO') {
+    const scenarioSelect = document.getElementById('route-scenario');
+    if (scenarioSelect) {
+      scenarioSelect.value = data.payload;
+      if (typeof onScenarioChange === 'function') {
+        onScenarioChange();
+      }
+    }
+  } else if (data.type === 'PLAN_ROUTE') {
+    if (typeof planRoute === 'function') {
+      planRoute();
+    }
+  } else if (data.type === 'TOGGLE_WEATHER') {
+    const tabBtn = document.getElementById('tab-btn-weather');
+    if (tabBtn) tabBtn.click();
+  } else if (data.type === 'REQUEST_STATS') {
+    const stats = {
+      bergs: document.getElementById('stat-bergs')?.innerText,
+      vessels: document.getElementById('stat-vessels')?.innerText,
+      status: document.getElementById('stat-status-val')?.innerText
+    };
+    window.parent.postMessage({ type: 'STATS_UPDATE', payload: stats }, window.location.origin);
+  }
+});
