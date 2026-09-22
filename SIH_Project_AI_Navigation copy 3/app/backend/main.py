@@ -1309,6 +1309,20 @@ if os.path.exists(artifacts_dir):
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
 dashboard_dir = os.path.join(frontend_dir, "dashboard")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
+@app.get("/dashboard")
+@app.get("/dashboard/")
+def get_dashboard_page():
+    dash_index = os.path.join(dashboard_dir, "index.html")
+    if os.path.exists(dash_index):
+        return FileResponse(dash_index, headers=NO_CACHE_HEADERS)
+    raise HTTPException(status_code=404, detail="Dashboard not found")
+
 # Mount /dashboard to compiled Next.js export if present
 if os.path.exists(dashboard_dir):
     app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
@@ -1324,12 +1338,6 @@ if os.path.exists(new_ui_dir):
         folder_path = os.path.join(new_ui_dir, folder)
         if os.path.exists(folder_path):
             app.mount(f"/{folder}", StaticFiles(directory=folder_path), name=f"new_ui_{folder}")
-
-NO_CACHE_HEADERS = {
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    "Pragma": "no-cache",
-    "Expires": "0"
-}
 
 @app.get("/")
 def get_landing_page():

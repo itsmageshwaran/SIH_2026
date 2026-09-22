@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import {
-  Activity, Anchor, ArrowUpRight, CloudSnow, Compass, RefreshCw, Radio, ShieldCheck, Waves,
+  Activity, Anchor, ArrowLeft, ArrowUpRight, CloudSnow, Compass, RefreshCw, Radio, ShieldCheck, Waves,
 } from "lucide-react"
 
 import { GlobeToMapTransform } from "@/components/globe-to-map-transform"
@@ -150,8 +150,19 @@ export default function Page() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = "/";
+            }}
+            title="Return to Home Page"
+            className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 py-1.5 text-xs font-semibold font-mono text-primary shadow-[0_0_12px_rgba(63,208,224,0.25)] transition hover:bg-primary hover:text-primary-foreground hover:shadow-[0_0_18px_rgba(63,208,224,0.45)] cursor-pointer"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Back to Home</span>
+          </a>
           <nav className="flex items-center gap-1.5 mr-2">
-            <a href="/" className="px-2.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-primary transition hover:bg-primary/10">Home</a>
             <a href="/radar" className="px-2.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-primary transition hover:bg-primary/10">3D Radar</a>
             <a href="/navigator" className="px-2.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-primary transition hover:bg-primary/10">Navigator AI</a>
           </nav>
