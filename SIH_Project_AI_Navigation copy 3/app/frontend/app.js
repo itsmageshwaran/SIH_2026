@@ -317,7 +317,7 @@ async function loadVessels() {
     data.vessels.forEach(v => {
       const flag = FLAG_EMOJI[v.flag] || "🚢";
       // Ship marker as arrow rotated to heading
-      const shipHtml = `<div style="transform:rotate(${v.heading}deg);font-size:18px;line-height:1;">▲</div>`;
+      const shipHtml = `<div style="transform:rotate(${v.heading}deg);display:flex;justify-content:center;align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#1e3a5f" stroke="#ffffff" stroke-width="1.5"><path d="M12 2 L17 8 L16 20 L12 22 L8 20 L7 8 Z" /></svg></div>`;
       const icon = L.divIcon({className:"vessel-pin",
         html:`<div style="color:#1e3a5f;font-size:16px;filter:drop-shadow(0 1px 3px #0a254080)">${shipHtml}</div>`,
         iconSize:[20,20],iconAnchor:[10,10]});
