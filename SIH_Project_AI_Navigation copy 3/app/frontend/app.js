@@ -65,13 +65,19 @@ function initMap() {
   map = L.map("polar-map", {center:[-75,0], zoom:2, minZoom:1, maxZoom:13, zoomControl:false});
   L.control.zoom({position:"bottomleft"}).addTo(map);
 
-function fitActiveRoute() {
-  if (lastRouteWaypoints && lastRouteWaypoints.length) {
-    map.fitBounds(L.latLngBounds(lastRouteWaypoints.map(w => [w.lat, w.lon])), { padding: [60, 60] });
-  } else {
-    alert('No active route planned yet. Please compute an A* route first.');
-  }
-}
+  const mapActions = L.control({position: 'topright'});
+  mapActions.onAdd = function() {
+    const div = L.DomUtil.create('div', 'map-actions-ctrl');
+    div.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:4px; margin: 10px;">
+        <button onclick="map.setView([-75,0], 2)" class="action-btn" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border); padding:6px 10px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); font-family:var(--sans); font-size:12px;"><i data-lucide="maximize" style="width:14px;height:14px;"></i> Reset View</button>
+        <button onclick="if(lastRouteWaypoints && lastRouteWaypoints.length) { map.fitBounds(L.latLngBounds(lastRouteWaypoints.map(w=>[w.lat,w.lon])),{padding:[60,60]}); } else { alert('No active route to fit.'); }" class="action-btn" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border); padding:6px 10px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); font-family:var(--sans); font-size:12px;"><i data-lucide="route" style="width:14px;height:14px;"></i> Fit Route</button>
+      </div>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  mapActions.addTo(map);
 
   // Esri World Ocean Base (free, no API key)
   L.tileLayer(
@@ -1957,57 +1963,34 @@ function scheduleNextSIHStep() {
   }, SIH_STEP_DURATION_MS);
 }
 
-// Cross-window communication with React parent (for /map and embedded views)
+// Cross-window communication with React parent
 window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) return;
   const data = event.data;
-  if (!data || typeof data !== 'object' || !data.type) return;
+  if (!data || !data.type) return;
 
   if (data.type === 'SET_SCENARIO') {
-    switchTab('routing');
-    const startSel = document.getElementById('route-start-select');
-    const goalSel = document.getElementById('route-goal-select');
-    const optin = document.getElementById('check-operator-optin');
-
-    if (data.payload === 'safe') {
-      if (startSel) startSel.value = "Cape Town Port (South Africa)";
-      if (goalSel) goalSel.value = "Bharati (India)";
-      if (optin) optin.checked = false;
-    } else if (data.payload === 'iceberg') {
-      if (startSel) startSel.value = "Ushuaia Port (Argentina)";
-      if (goalSel) goalSel.value = "Palmer Station (US)";
-      if (optin) optin.checked = false;
-    } else if (data.payload === 'narrow') {
-      if (startSel) startSel.value = "Punta Arenas (Chile)";
-      if (goalSel) goalSel.value = "Rothera Station (UK)";
-      if (optin) optin.checked = false;
-    } else if (data.payload === 'blocked') {
-      if (startSel) startSel.value = "Ushuaia Port (Argentina)";
-      if (goalSel) goalSel.value = "Maitri (India)";
-      if (optin) optin.checked = false;
-    }
-    if (typeof optimizeMaritimeRoute === 'function') {
-      optimizeMaritimeRoute();
+    const scenarioSelect = document.getElementById('route-scenario');
+    if (scenarioSelect) {
+      scenarioSelect.value = data.payload;
+      if (typeof onScenarioChange === 'function') {
+        onScenarioChange();
+      }
     }
   } else if (data.type === 'PLAN_ROUTE') {
-    switchTab('routing');
-    if (typeof optimizeMaritimeRoute === 'function') {
-      optimizeMaritimeRoute();
+    if (typeof planRoute === 'function') {
+      planRoute();
     }
   } else if (data.type === 'TOGGLE_WEATHER') {
-    const activeTab = document.querySelector('.panel-tabs .tab-btn.active');
-    if (activeTab && activeTab.id === 'tab-btn-weather') {
-      switchTab('tracking');
-    } else {
-      switchTab('weather');
-    }
+    const tabBtn = document.getElementById('tab-btn-weather');
+    if (tabBtn) tabBtn.click();
   } else if (data.type === 'REQUEST_STATS') {
+    // Send back some stats to React
     const stats = {
-      bergs: document.getElementById('stat-bergs')?.innerText || '75',
-      vessels: document.getElementById('stat-vessels')?.innerText || '8',
-      status: document.getElementById('stat-status-val')?.innerText || 'LIVE ASCAT'
+      bergs: document.getElementById('stat-bergs')?.innerText,
+      vessels: document.getElementById('stat-vessels')?.innerText,
+      status: document.getElementById('stat-status-val')?.innerText
     };
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'STATS_UPDATE', payload: stats }, '*');
-    }
+    window.parent.postMessage({ type: 'STATS_UPDATE', payload: stats }, window.location.origin);
   }
 });

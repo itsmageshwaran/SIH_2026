@@ -276,7 +276,7 @@ input[type=range]{width:100%;accent-color:var(--cyan);}
 
 /* Map Quick Controls */
 .map-quick-controls{
-  position:absolute;top:16px;right:16px;
+  position:absolute;top:115px;right:16px;
   background:var(--bg-panel);backdrop-filter:blur(16px);
   border:1px solid var(--border);border-radius:var(--radius-sm);
   padding:5px;display:flex;flex-direction:column;gap:4px;z-index:800;box-shadow:var(--shadow);
