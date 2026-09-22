@@ -1325,13 +1325,19 @@ if os.path.exists(new_ui_dir):
         if os.path.exists(folder_path):
             app.mount(f"/{folder}", StaticFiles(directory=folder_path), name=f"new_ui_{folder}")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
 @app.get("/")
 def get_landing_page():
     """Serves the new React UI."""
     new_ui_index = os.path.join(new_ui_dir, "index.html")
     if os.path.exists(new_ui_index):
-        return FileResponse(new_ui_index)
-    return FileResponse(os.path.join(frontend_dir, "index.html"))
+        return FileResponse(new_ui_index, headers=NO_CACHE_HEADERS)
+    return FileResponse(os.path.join(frontend_dir, "index.html"), headers=NO_CACHE_HEADERS)
 
 @app.get("/simulation")
 @app.get("/map")
@@ -1340,12 +1346,22 @@ def get_react_routes():
     """Serves the React UI for client-side routing."""
     return get_landing_page()
 
+@app.get("/globe")
+@app.get("/landing-globe")
+@app.get("/landing.html")
+def get_globe_landing():
+    """Serves the real-life 3D Earth Globe with continents and fluid velocity particles."""
+    globe_file = os.path.join(frontend_dir, "archive", "landing.html")
+    if os.path.exists(globe_file):
+        return FileResponse(globe_file, headers=NO_CACHE_HEADERS)
+    raise HTTPException(status_code=404, detail="Globe landing page not found")
+
 @app.get("/navigator")
 def get_navigator_page():
     """Serves the original 6-tab Antarctic AI Navigator interface."""
     index_file = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="Navigator index page not found")
 
 @app.get("/radar")
@@ -1354,7 +1370,7 @@ def get_radar_page():
     """Serves the 3D Tactical Radar simulation interface directly."""
     radar_file = os.path.join(frontend_dir, "radar_simulation.html")
     if os.path.exists(radar_file):
-        return FileResponse(radar_file)
+        return FileResponse(radar_file, headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="Radar simulation page not found")
 
 # Serve static assets required by Navigator UI
@@ -1362,14 +1378,14 @@ def get_radar_page():
 def get_style_css():
     css_file = os.path.join(frontend_dir, "style.css")
     if os.path.exists(css_file):
-        return FileResponse(css_file, media_type="text/css")
+        return FileResponse(css_file, media_type="text/css", headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="style.css not found")
 
 @app.get("/app.js")
 def get_app_js():
     js_file = os.path.join(frontend_dir, "app.js")
     if os.path.exists(js_file):
-        return FileResponse(js_file, media_type="application/javascript")
+        return FileResponse(js_file, media_type="application/javascript", headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="app.js not found")
 
 @app.get("/navigator/style.css")
@@ -1384,7 +1400,7 @@ def get_navigator_app_js():
 def get_ice_field_mjs():
     mjs_file = os.path.join(frontend_dir, "dashboard", "ice-field.mjs")
     if os.path.exists(mjs_file):
-        return FileResponse(mjs_file, media_type="application/javascript")
+        return FileResponse(mjs_file, media_type="application/javascript", headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="ice-field.mjs not found")
 
 
